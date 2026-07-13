@@ -19,6 +19,7 @@ import base64
 import os
 import time
 from pathlib import Path
+from typing import Literal, get_args
 
 from google import genai
 from google.genai import types as genai_types
@@ -32,7 +33,16 @@ from pydantic import BaseModel, Field
 # --------------------------------------------------------------------------------------
 PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT")  # set in env, or resolved from ADC
 LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
-IMAGE_MODEL = os.environ.get("NANO_BANANA_MODEL", "gemini-3.1-flash-image")
+
+# Image models the caller can pick per request. Typing this as a Literal makes the SDK
+# expose it as an **enum** in each tool's inputSchema, so the agent sees the valid choices.
+# Add a new model by adding one line here — nothing else changes.
+ImageModel = Literal[
+    "gemini-3.1-flash-image",       # nano-banana — fast, the default
+    "gemini-3-pro-image",           # nano-banana pro — higher quality / detail
+    "gemini-3.1-flash-lite-image",  # cheapest / fastest
+]
+DEFAULT_IMAGE_MODEL: str = os.environ.get("NANO_BANANA_MODEL", "gemini-3.1-flash-image")
 
 GENERATED_DIR = Path(__file__).parent / "generated"
 GENERATED_DIR.mkdir(exist_ok=True)
@@ -106,17 +116,23 @@ class WeatherReport(BaseModel):
 # FLAGSHIP TOOLS — nano-banana on Vertex
 # --------------------------------------------------------------------------------------
 @mcp.tool()
-async def generate_image(prompt: str, ctx: Context, aspect_ratio: str = "16:9") -> GeneratedImage:
-    """Generate a brand-new image from a text prompt using nano-banana (Gemini image model).
+async def generate_image(
+    prompt: str,
+    ctx: Context,
+    aspect_ratio: str = "16:9",
+    model: ImageModel = "gemini-3.1-flash-image",
+) -> GeneratedImage:
+    """Generate a brand-new image from a text prompt using a Gemini image model.
 
-    Use this when the user wants an image created from scratch. Returns a resource URI
+    Use this when the user wants an image created from scratch. `model` selects the image
+    model (flash = fast default, pro = higher quality). Returns a resource URI
     (image://<name>) that can be read back via resources, plus metadata.
     """
-    await ctx.info(f"Calling nano-banana ({IMAGE_MODEL}) for a {aspect_ratio} image…")
+    await ctx.info(f"Calling {model} for a {aspect_ratio} image…")
     await ctx.report_progress(0.1, 1.0, "contacting Vertex")
 
     resp = _client().models.generate_content(
-        model=IMAGE_MODEL,
+        model=model,
         contents=f"{prompt}. Aspect ratio {aspect_ratio}.",
     )
     await ctx.report_progress(0.7, 1.0, "decoding image")
@@ -131,17 +147,23 @@ async def generate_image(prompt: str, ctx: Context, aspect_ratio: str = "16:9") 
         path=str(path),
         mime_type=mime,
         size_bytes=len(data),
-        model=IMAGE_MODEL,
+        model=model,
         prompt=prompt,
     )
 
 
 @mcp.tool()
-async def edit_image(source: str, edit_prompt: str, ctx: Context) -> GeneratedImage:
-    """Edit an existing image with a natural-language instruction (nano-banana image edit).
+async def edit_image(
+    source: str,
+    edit_prompt: str,
+    ctx: Context,
+    model: ImageModel = "gemini-3.1-flash-image",
+) -> GeneratedImage:
+    """Edit an existing image with a natural-language instruction (Gemini image edit).
 
     `source` may be an MCP image:// resource URI, a bare filename in the generated/ dir,
-    or an absolute path. Example edit_prompt: 'add sunglasses, keep everything else the same'.
+    or an absolute path. `model` selects the image model. Example edit_prompt:
+    'add sunglasses, keep everything else the same'.
     """
     # Resolve source -> bytes
     name = source.removeprefix("image://")
@@ -150,12 +172,12 @@ async def edit_image(source: str, edit_prompt: str, ctx: Context) -> GeneratedIm
         # Surface as a *tool* error the model can read/react to (isError), not a crash.
         raise ValueError(f"Source image not found: {src_path}")
 
-    await ctx.info(f"Editing {src_path.name} with nano-banana…")
+    await ctx.info(f"Editing {src_path.name} with {model}…")
     await ctx.report_progress(0.2, 1.0, "reading source")
     img_bytes = src_path.read_bytes()
 
     resp = _client().models.generate_content(
-        model=IMAGE_MODEL,
+        model=model,
         contents=[
             genai_types.Part.from_bytes(data=img_bytes, mime_type="image/png"),
             edit_prompt,
@@ -171,7 +193,7 @@ async def edit_image(source: str, edit_prompt: str, ctx: Context) -> GeneratedIm
         path=str(path),
         mime_type=mime,
         size_bytes=len(data),
-        model=IMAGE_MODEL,
+        model=model,
         prompt=edit_prompt,
     )
 
@@ -183,6 +205,14 @@ async def edit_image(source: str, edit_prompt: str, ctx: Context) -> GeneratedIm
 def add(a: float, b: float) -> float:
     """Add two numbers. Simplest possible tool: typed inputs, scalar output."""
     return a + b
+
+
+@mcp.tool()
+def list_image_models() -> list[str]:
+    """List the image models generate_image/edit_image can use (the default is first)."""
+    models = list(get_args(ImageModel))
+    models.sort(key=lambda m: m != DEFAULT_IMAGE_MODEL)  # default first
+    return models
 
 
 @mcp.tool()
@@ -304,8 +334,8 @@ async def caption_last_image(ctx: Context) -> str:
 def app_config() -> str:
     """A static resource: server configuration as JSON text."""
     return (
-        '{"name": "learn-mcp", "image_model": "%s", "project": "%s", "location": "%s"}'
-        % (IMAGE_MODEL, PROJECT, LOCATION)
+        '{"name": "learn-mcp", "default_image_model": "%s", "project": "%s", "location": "%s"}'
+        % (DEFAULT_IMAGE_MODEL, PROJECT, LOCATION)
     )
 
 
