@@ -1,0 +1,34 @@
+# Blog drafts + images (not published in this code repo)
+blog/
+
+# Local run logs (may contain paths / project info)
+transcripts/
+
+# Generated images (regenerable)
+generated/
+**/generated/
+
+# Archives
+*.zip
+
+# Secrets / credentials — never commit
+*.json.key
+**/service-account*.json
+**/*credential*
+**/*secret*
+*.evalset.json
+.env
+.env.*
+*.pem
+*.key
+*token*
+
+# Python / tooling
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+.adk/
+**/.adk/
+.claude/
+.DS_Store

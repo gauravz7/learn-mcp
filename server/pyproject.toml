@@ -1,0 +1,13 @@
+[project]
+name = "learn-mcp-server"
+version = "0.1.0"
+description = "A FastMCP server exercising every MCP primitive, with nano-banana image tools"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp[cli]>=1.2.0",
+    "google-genai>=0.3.0",
+    "pydantic>=2.0",
+]
+
+[project.scripts]
+learn_mcp_server = "learn_mcp_server:main"
