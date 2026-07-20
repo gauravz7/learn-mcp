@@ -1,15 +1,15 @@
-# Model the crew, not the movie: the pre-production barrier is your agent architecture
+# Part 2 · Barrier, Fan-out, Join — the architecture of a creative agent
 
-*I built an AI film-production pipeline as an MCP server — it casts characters, designs a look,
-plans shots, renders keyframes, and checks its own dailies. The interesting part wasn't the image
-model. It was discovering that the single most important architectural decision happens **before any
-expensive work runs**: a short, strictly sequential "pre-production" gate that every parallel step
-downstream depends on. Get it right and the rest fans out cheaply and safely. Get it wrong and you
-pay for it N times over.*
+*Part 2 of **[The Agentic Studio](agentic-studio-series.html)**. The studio is a scheduler over
+stochastic renders; this is how the scheduler is built. One decision dominates the design, and it
+happens **before any GPU-second is spent**: a short, strictly ordered barrier — treatment, look,
+cast — that every downstream branch conditions on. Lock it and N scenes fan out in parallel, cheaply
+and safely. Skip it and you pay for the same inconsistency N times over. The pipeline is a real MCP
+server; every claim below is a mechanism, not a metaphor.*
 
 ---
 
-# Part 1 — For the CTO: the decision in five minutes
+# The five-minute version (for architects)
 
 ## The one idea
 

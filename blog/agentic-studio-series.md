@@ -1,65 +1,102 @@
 # The Agentic Studio
 
-*The next generation of multimedia won't be made with tools. It will be made by an agent that runs a
-production. This is a three-part series on **The Agentic Studio** — how an entire film crew collapses
-into one director agent, why that changes who gets to make multimedia, and what stays genuinely hard.*
+*A film crew is a distributed system: specialized workers, typed handoffs, hard ordering
+constraints, and a continuity supervisor whose whole job is catching state violations. Generative
+models made the individual *render* cheap. They did nothing for the *coordination* — and coordination
+is the movie. This is a three-part engineering series on collapsing that coordination into one
+director agent, built on a real MCP + Skills pipeline.*
 
 ---
 
-## The thesis in one line
+## The thesis
 
-> **The barrier to making a film was never the camera. It was coordinating the crew. That just became
-> an API.**
+> **A generative model is a render function. A studio is a scheduler, a state store, and a set of
+> invariants over that state. The Agentic Studio is the claim that the second thing — not the first —
+> is now buildable as an agent.**
 
-For a century, making multimedia meant assembling *people* — a writer, a production designer, a
-cinematographer, a continuity supervisor, an editor — and coordinating their handoffs. Generative
-models made individual *assets* cheap, but a movie is not an asset; it's a **coordinated production**.
-The Agentic Studio is the claim that the coordination itself — the crew's org chart — is now
-software: a director agent that casts, designs a look, plans shots, enforces continuity, and reviews
-its own dailies, calling generative models the way a director calls a crew.
+The market is flooded with better render functions: text-to-image, text-to-video, text-to-audio.
+They all have the same shape — one prompt in, one asset out, no memory of the last asset or the next
+one. A film is the opposite: **N assets that must agree** on a character's face, a set's geometry, a
+light's direction, and the 180° line, across every cut. Getting N stochastic renders to agree is not
+a prompting problem. It's a systems problem: shared state, ordering, validation, and a feedback loop.
 
-The unit of creation shifts from **the clip** to **the pipeline**. That's the disruption.
+That's what the Agentic Studio is — and every part of it maps to something you'd recognize from
+building any stateful distributed system.
 
-## Why now
+## The architecture, in primitives
 
-Three ingredients converged, and none of them is "a better image model":
+Strip the film vocabulary and here is the machine:
 
-- **MCP** — portable *capability*. A credentialed model (image, video, audio) exposed once, callable
-  by any agent, over the wire.
-- **Skills** — portable *craft*. A director's decision procedure, continuity rules, and shot
-  patterns packaged as know-how the agent loads on demand.
-- **Cheap generation** — assets at the marginal cost of a call, so a production can *afford* to
-  render, review, and re-render.
+- **A typed state store (the "bible").** One JSON document per user/project, strictly
+  partitioned, atomic writes under a lock, IDs sanitized against path traversal. It is the single
+  source of truth; every stage reads the previous stage's output from it, never from chat history.
+  **The handoff artifact is the interface** — the same discipline as passing typed messages between
+  services instead of sharing mutable memory.
+- **A dependency-ordered pipeline with a barrier.** `create_project → generate_style_ref →
+  add_character → establish_scene → plan_scene → generate_shot → start/poll video`. The first three
+  are a **sequential barrier**: everything downstream conditions on the look and the cast. After the
+  barrier, scenes are independent and **fan out in parallel** — a literal second unit. Barrier →
+  fan-out → join is the topology, and it is dictated by the data dependencies, not chosen for style.
+- **A deterministic validation gate.** `film_grammar.validate_plan` is pure logic — no I/O. It
+  checks continuity rules (R7 establish-first, R1 180° line, R3 eyeline, R4 30° jump-cut, R14
+  reciprocal OTS height, R19 lens) against the shot-plan JSON and returns typed violations.
+  `plan_scene` **persists shots only if there are zero error-severity violations.** A cheap, fast,
+  correct gate that runs *before* a single GPU-second is spent on rendering.
+- **An LLM critic loop.** After a render, a vision model scores the frame per dimension — prompt
+  adherence, character identity *versus the reference sheets*, framing, anatomy, extra/missing
+  subjects — and on failure the pipeline **regenerates with the critic's issues fed back into the
+  prompt**, bounded by `QC_MAX_TRIES`. Deterministic gate for what a rule can prove; LLM critic for
+  what needs judgment. Two judges, different economics.
+- **Resource indirection — links, not bytes.** Tools return a tiny record with a `movie://` URI;
+  pixels cross into the model's context only on an explicit `resources/read`. This is the difference
+  between passing N reference images to N parallel branches for a few hundred tokens versus melting
+  the context window with base64. The fan-out is only affordable *because* of this.
+- **Stateless async jobs.** Video (Veo) returns an upstream job name; the server holds no job
+  state — the name lives in the bible and any instance can rehydrate and poll it. Long work, no
+  sticky sessions, horizontal scale intact.
 
-Capability + craft + cheap iteration is the whole recipe. The studio was waiting on the coordination
-layer — and that's what an agent is.
+Two runtimes compose to drive it: **MCP** carries the credentialed *capability* over Streamable HTTP;
+**Skills** carry the *craft* — the director's decision procedure and the continuity rules — loaded
+into the agent by progressive disclosure so they cost ~one line of context until they fire.
+
+## Why the render function isn't enough
+
+The hard part is the invariant, and the invariant is **cross-asset consistency**:
+
+- **Identity** — the same character across 40 shots, at different angles and lighting, still reads
+  as one person. Solved with canonical reference sheets composed into every keyframe, and a critic
+  that scores identity *against those sheets* — not a single frame in isolation.
+- **Continuity** — screen direction, eyelines, and the 180° line hold across cuts. Solved by
+  encoding them as enforceable rules and gating the plan on them before render.
+- **Compositing distinct domains** — e.g. a hand-painted galaxy at infinity over a sharp night-lit
+  town, reading as one photograph, not a matte glued on. Solved by a single global style anchor both
+  domains derive from, plus a lighting-coherence dimension in the critic.
+
+None of those are prompt tweaks. They are state, ordering, and validation — which is exactly why the
+studio is an *agent*, not a bigger model.
 
 ---
 
 ## The series
 
-### Part 1 — The Thesis: *From Prompt to Production Crew*
-For leaders. Why the next generation of multimedia is made by an agent running a production, not a
-human running a tool. The studio-as-multi-agent-system reframe, the market shift from clip to
-pipeline, and why the enabling standards (MCP + Skills) make it buildable today.
-*(Forthcoming.)*
+### Part 1 — The Thesis: *The Studio Is a Distributed System*
+For leaders and architects. Why the next generation of multimedia is orchestration, not generation;
+the render-function-vs-studio distinction; and why MCP + Skills + cheap inference make the
+coordination layer buildable now. *(Forthcoming.)*
 
-### Part 2 — The Architecture: *How a Creative Agent Actually Thinks*
-For builders. The load-bearing engineering decision: the **pre-production barrier** — a short,
-sequential, gated set of shared artifacts (treatment, look, cast) that everything downstream
-conditions on — then the parallel fan-out of scenes. The reliability spine of **a deterministic
-continuity gate plus an LLM critic loop**, and the context economics that make it scale.
+### Part 2 — The Architecture: *Barrier, Fan-out, Join*
+For builders. The load-bearing decision — the **pre-production barrier** — and the full skill+MCP
+call path, with sequence diagrams. Deterministic gate plus critic loop as the reliability spine, and
+the context economics that make the fan-out scale.
 → **[Read Part 2 →](pre-production-barrier.html)**
 
-### Part 3 — The Moat: *Consistency, Continuity, and Taste at Scale*
-What stays hard, and therefore what's defensible. Anyone can generate a clip; keeping a **character
-and a world consistent across a whole film** is the moat — identity and style across shots,
-continuity across scenes, and compositing distinct visual domains into one photograph. Where it goes
-next: video and sound as the same pipeline, and human-in-the-loop as *creative direction*, not
-babysitting.
-*(Forthcoming.)*
+### Part 3 — The Moat: *Consistency Is the Product*
+The invariants above, taken seriously: identity across shots, continuity across scenes,
+cross-domain compositing, and the unit economics ($/scene, $/QC retry, $/second of video) that make
+the marginal cost of a scene approach zero. Where it goes: video and sound as the same pipeline,
+human-in-the-loop as direction not babysitting. *(Forthcoming.)*
 
 ---
 
 *Built on a real MCP + Skills film-production pipeline. The foundational piece on the two standards
-behind it is **[MCP and Skills](index.html)**.*
+is **[MCP and Skills](index.html)**.*
