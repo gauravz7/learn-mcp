@@ -29,3 +29,10 @@ __pycache__/
 **/.adk/
 .claude/
 .DS_Store
+
+# Movie pipeline local data (bibles) — regenerable
+movie/data/
+
+# Persisted ADK session store (per-user transcripts) — regenerable
+*.db
+movie_studio/sessions.db
