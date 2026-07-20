@@ -98,8 +98,14 @@ studio is an *agent*, not a bigger model.
 
 ## See it in action — *The Choice*
 
-A photorealistic short built end-to-end by the studio (cast → style → storyboards → video). The
-global **style reference** and the three **character sheets** that anchor identity across every shot:
+**A quick walkthrough of Movie Studio** — the chat UI, the live activity panel, and a scene coming
+together end to end:
+
+<video controls preload="metadata" src="media/studio-walkthrough.mp4" style="width:100%"></video>
+
+Below, the assets behind a photorealistic short built entirely by the studio (cast → style →
+storyboards → video). The global **style reference** and the three **character sheets** that anchor
+identity across every shot:
 
 <div class="gallery">
 <figure><img src="media/choice-style.jpg" alt="style reference"><figcaption>Style reference — the global look</figcaption></figure>
