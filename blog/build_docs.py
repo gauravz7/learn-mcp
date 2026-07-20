@@ -65,10 +65,14 @@ def render(slug: str) -> None:
     html = md.convert(text)
 
     def _mermaid(m: re.Match) -> str:
-        # Keep the HTML entities as-is. The browser decodes them in textContent, which is
-        # exactly what Mermaid reads — so `&lt;br/&gt;` reaches Mermaid as the literal string
-        # "<br/>" (a label line-break) instead of a real <br> DOM node the browser would eat.
-        return f'<pre class="mermaid">\n{m.group(1)}\n</pre>'
+        # Markdown HTML-escapes code blocks (< > & "). Mermaid needs the RAW diagram text, so
+        # un-escape it. Then drop <br/> line-breaks: a real <br> inside <pre class="mermaid"> is
+        # parsed by the browser as a DOM node, splitting the diagram source and breaking parsing —
+        # labels render fine single-line.
+        import html as _html
+        body = _html.unescape(m.group(1))
+        body = re.sub(r"\s*<br\s*/?>\s*", " ", body)
+        return f'<pre class="mermaid">\n{body}\n</pre>'
 
     n_mmd = len(re.findall(r'<pre><code class="language-mermaid">', html))
     html = re.sub(r'<pre><code class="language-mermaid">(.*?)</code></pre>',
