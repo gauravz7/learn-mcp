@@ -284,6 +284,18 @@ def add_location(
         return loc_id
 
 
+def update_prop(user_id: str, project_id: str, prop_id: str, patch: dict) -> dict:
+    """Merge ``patch`` into a prop (e.g. new ``refs``); returns the updated prop."""
+    with _LOCK:
+        bible = _load(user_id, project_id)
+        p = bible.get("props", {}).get(prop_id)
+        if p is None:
+            raise KeyError(f"prop {prop_id!r} not found in project {project_id!r}")
+        p.update(patch)
+        _persist(bible)
+        return p
+
+
 def add_prop(
     user_id: str,
     project_id: str,

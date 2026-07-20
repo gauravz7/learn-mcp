@@ -793,7 +793,9 @@ def mv_generate_music(user_id: str, project_id: str, prompt: str = "", mood: str
 # Behind Cloud Run the Host header is the *.run.app domain, so FastMCP's default localhost-only
 # DNS-rebinding allowlist would 421 every MCP request (that's what makes clients see an EMPTY
 # toolset). Cloud Run + IAM is the security boundary here, so disable that specific check.
-mcp = FastMCP("movie-mcp",
+# stateless_http + json_response: no per-connection session id to lose across Cloud Run cold
+# starts/instances (avoids "Session terminated" toolset drops); each request is self-contained.
+mcp = FastMCP("movie-mcp", stateless_http=True, json_response=True,
               transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False))
 
 
@@ -967,9 +969,20 @@ def mv_import_character(user_id: str, project_id: str, name: str, description: s
     src = _gen_dir(user_id, project_id) / _safe_name(image_name.split("/")[-1])
     if not src.exists():
         raise ValueError(f"uploaded image not found for import: {image_name}")
+    b = store.get_project(user_id, project_id)
+    low = name.strip().lower()
+    existing = next((cid for cid, c in b.get("characters", {}).items()
+                     if (c.get("name") or "").strip().lower() == low), None)
+    if existing:   # REPLACE the existing same-name character's sheet with the upload (no duplicate)
+        store.update_character(user_id, project_id, existing,
+                               {"refs": [str(src)],
+                                "desc": description or b["characters"][existing].get("desc", "")})
+        return {"char_id": existing, "name": name, "ref_uri": str(src), "uploaded": True,
+                "replaced": True, "resource_uri": _asset_uri(user_id, project_id, str(src)),
+                "note": "replaced existing character's reference — re-run generate_microshot for their scenes"}
     cid = store.add_character(user_id, project_id, name,
                              description or f"user-uploaded reference for {name}", refs=[str(src)])
-    return {"char_id": cid, "name": name, "ref_uri": str(src), "uploaded": True,
+    return {"char_id": cid, "name": name, "ref_uri": str(src), "uploaded": True, "replaced": False,
             "resource_uri": _asset_uri(user_id, project_id, str(src))}
 
 
@@ -1029,9 +1042,17 @@ def mv_import_prop(user_id: str, project_id: str, name: str, description: str = 
     src = _gen_dir(user_id, project_id) / _safe_name(image_name.split("/")[-1])
     if not src.exists():
         raise ValueError(f"uploaded image not found for import: {image_name}")
+    b = store.get_project(user_id, project_id)
+    low = name.strip().lower()
+    existing = next((pid for pid, p in b.get("props", {}).items()
+                     if (p.get("name") or "").strip().lower() == low), None)
+    if existing:   # REPLACE the existing same-name prop's reference (no duplicate)
+        store.update_prop(user_id, project_id, existing, {"refs": [str(src)]})
+        return {"prop_id": existing, "name": name, "ref_uri": str(src), "uploaded": True,
+                "replaced": True, "resource_uri": _asset_uri(user_id, project_id, str(src))}
     pid = store.add_prop(user_id, project_id, name,
                          description or f"user-uploaded prop: {name}", refs=[str(src)])
-    return {"prop_id": pid, "name": name, "ref_uri": str(src), "uploaded": True,
+    return {"prop_id": pid, "name": name, "ref_uri": str(src), "uploaded": True, "replaced": False,
             "resource_uri": _asset_uri(user_id, project_id, str(src))}
 
 

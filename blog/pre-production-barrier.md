@@ -262,6 +262,88 @@ The one sentence to keep: **Skills answer "how should I do this?" in the agent's
 is just this sequence run first for the treatment, look, and cast — the artifacts every later run of
 this same sequence conditions on.
 
+## The barrier, then the fan-out — the whole pipeline in one picture
+
+Zoom out from the single scene. The pipeline is the *same* skill+MCP sequence run several times: a
+few times **in series** to build the barrier (the shared artifacts), then N times **in parallel**
+once the barrier is locked. The `par` band below is where the money is spent — and it's only safe to
+run in parallel *because* everything above the barrier line already agreed on the look and the cast.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant H as Agent (Gemini LLM)
+    participant SK as Skills runtime
+    participant S as movie-mcp
+    participant G as film_grammar
+    participant NB as nano-banana
+    participant B as Bible
+
+    U->>H: "Galaxy over a remote town — a kid who wants the stars"
+
+    rect rgb(245,244,252)
+    Note over H,B: PRE-PRODUCTION — sequential barrier (cheap: text + a few anchors)
+    H->>SK: load_skill("script-developer")
+    SK-->>H: clarify + treatment procedure
+    Note over H: LLM emits Treatment{logline, scenes[], cast[]}
+    H->>S: create_project
+    S->>B: write bible → project_id
+    H->>S: generate_style_ref
+    S->>NB: ONE global look anchor (town night + galaxy palette)
+    NB-->>S: PNG
+    S->>B: StyleRef
+    loop each character in cast
+        H->>S: add_character
+        S->>NB: reference sheet
+        S->>B: CharacterSheet{ref_uri} (+ QC)
+    end
+    end
+
+    Note over H,B: ── BARRIER ── approve look + cast (INTERACTIVE) / validate (AUTO)
+
+    rect rgb(244,252,244)
+    Note over H,B: PHOTOGRAPHY — fan-out; scenes independent now (second unit)
+    par scene 1
+        H->>S: establish_scene → plan_scene
+        S->>G: validate_plan
+        G-->>S: [] ok
+        S->>NB: generate_shot (from plate + refs)
+        S->>B: shot + resource_uri
+    and scene 2
+        H->>S: establish_scene → plan_scene
+        S->>G: validate_plan
+        G-->>S: [R3 eyeline] ← gaze-to-galaxy
+        Note over H: re-block via skill, resend (no render spent)
+        S->>NB: generate_shot
+        S->>B: shot + resource_uri
+    and scene 3
+        H->>S: establish_scene → plan_scene → generate_shot
+        S->>B: shot + resource_uri
+    end
+    end
+
+    rect rgb(244,247,252)
+    Note over H,B: POST — sequential join
+    H->>S: list_project_assets
+    S-->>H: ResourceLinks (movie://…)
+    H-->>U: dailies — one keyframe per scene
+    end
+```
+
+Three things this picture makes obvious that the prose can't:
+
+- **The barrier is short and cheap** (one purple band, a handful of calls) but **everything in the
+  green band sits below it.** The blast-radius argument from Part 1 is now literally the vertical
+  layout: a bad `StyleRef` poisons all three parallel branches.
+- **`par` is only legal after the barrier.** Scene 2 and scene 3 don't reference each other — they
+  reference the *same* `StyleRef` and cast produced above. Remove the barrier and `par` becomes a
+  race: three scenes inventing three looks.
+- **The gate lives inside each branch, cheaply.** Scene 2's `plan_scene` fails `validate_plan`
+  (the kid's gaze doesn't match where the galaxy is framed — the eyeline-to-environment case), the
+  agent re-blocks via the skill, and **no frame was rendered** for the rejected plan. Deterministic
+  gate before the expensive call, per branch.
+
 ## Why the anchor is a single call, on purpose
 
 `generate_style_ref` produces **one** global look anchor, and every character and scene is composed
