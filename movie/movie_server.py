@@ -26,6 +26,7 @@ from pathlib import Path
 _log = logging.getLogger("movie.server")
 
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ResourceLink
 from pydantic import BaseModel
 
@@ -764,7 +765,11 @@ def mv_generate_music(user_id: str, project_id: str, prompt: str = "", mood: str
 # ======================================================================================
 # MCP server (thin wrappers exposing the pipeline as tools)
 # ======================================================================================
-mcp = FastMCP("movie-mcp")
+# Behind Cloud Run the Host header is the *.run.app domain, so FastMCP's default localhost-only
+# DNS-rebinding allowlist would 421 every MCP request (that's what makes clients see an EMPTY
+# toolset). Cloud Run + IAM is the security boundary here, so disable that specific check.
+mcp = FastMCP("movie-mcp",
+              transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False))
 
 
 @mcp.tool()
@@ -989,9 +994,11 @@ HELP_TOPICS = {
         "Per scene I make a people-free 'establishing' set plate, then a 3-frame micro-shot "
         "storyboard (the default deliverable). Approve or /redo each before the next scene."),
     "video": (
-        "On request I animate a scene's micro-shot into one short clip (max 10 seconds). I'll ask "
-        "two things first: (1) audio — spoken dialogue or a silent clip? and (2) approve the beats. "
-        "Rendering takes up to ~2.5 min; I'll share a link when it's done."),
+        "On request I animate a scene's micro-shot into one short clip — capped at 10 SECONDS. The "
+        "scene's FRAMES (micro-shot panels/beats) divide those 10s (~3s each; 3 frames ≈ 10s), so I "
+        "recommend a frame count per scene and you can agree or edit it — more action means more "
+        "scenes, not a longer clip. Before rendering I also ask: audio (spoken dialogue) or silent, "
+        "and to approve the beats. Rendering takes up to ~2.5 min; I'll share a link when it's done."),
     "music": (
         "I can generate a standalone INSTRUMENTAL score themed to your project (it isn't mixed "
         "into the video). Ask for the mood/instruments/tempo you want."),

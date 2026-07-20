@@ -23,6 +23,7 @@ let SESSIONS = [];                  // persisted sessions for this user (their L
 let busy = false;
 const seenAssets = new Set();      // dedup gallery by url
 const galleryUrls = [];            // for export-all
+const galleryThumbs = {};          // base url -> thumb media el (to refresh on regenerate)
 
 const AUDIO_SVG = '<svg viewBox="0 0 24 24" fill="none"><path d="M9 18V6l10-2v12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="1.6"/><circle cx="19" cy="16" r="3" stroke="currentColor" stroke-width="1.6"/></svg>';
 const DL_SVG = '<svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -223,6 +224,7 @@ function runTurn(message, ai) {
       ai.bubble.textContent = ai.text; scrollDown();
     } else if (d.type === 'media') {
       ai.thinking.remove();
+      d.src = d.url + (d.url.includes('?') ? '&' : '?') + 'v=' + Date.now();  // bust cache on regenerate
       addMediaCard(ai.media, d); addToGallery(d); scrollDown();
     } else if (d.type === 'error') {
       ai.text += (ai.text ? '\n' : '') + '⚠ ' + d.text;
@@ -252,10 +254,11 @@ function prettyTool(name) {
 // ---- media cards (inline, 3D tilt) ----
 function addMediaCard(container, d) {
   const card = el('div', 'card');
+  const src = d.src || d.url;
   let inner = '';
-  if (d.kind === 'image') inner = `<img src="${d.url}" alt="${d.name}" loading="lazy">`;
-  else if (d.kind === 'video') inner = `<video src="${d.url}" controls preload="metadata" playsinline></video>`;
-  else if (d.kind === 'audio') inner = `<audio src="${d.url}" controls preload="metadata"></audio>`;
+  if (d.kind === 'image') inner = `<img src="${src}" alt="${d.name}" loading="lazy">`;
+  else if (d.kind === 'video') inner = `<video src="${src}" controls preload="metadata" playsinline></video>`;
+  else if (d.kind === 'audio') inner = `<audio src="${src}" controls preload="metadata"></audio>`;
   card.innerHTML = inner +
     `<div class="cap"><span class="tool">${d.tool ? prettyTool(d.tool) : d.kind}</span>
        <a class="dl" href="${d.url}?download=1" download="${d.name}">${DL_SVG}Download</a></div>`;
@@ -276,15 +279,20 @@ function attachTilt(card) {
 
 // ---- gallery + export ----
 function addToGallery(d) {
-  if (seenAssets.has(d.url)) return;
+  const src = d.src || d.url;
+  if (seenAssets.has(d.url)) {                     // regenerated → refresh the existing thumb in place
+    const m = galleryThumbs[d.url]; if (m) m.src = src;
+    return;
+  }
   seenAssets.add(d.url); galleryUrls.push(d);
   if (gallery.querySelector('.empty')) gallery.innerHTML = '';
   const t = el('div', 'thumb' + (d.kind === 'audio' ? ' audio' : ''));
-  if (d.kind === 'image') t.innerHTML = `<img src="${d.url}" alt="${d.name}">`;
-  else if (d.kind === 'video') t.innerHTML = `<video src="${d.url}" muted preload="metadata"></video><span class="badge">clip</span>`;
+  if (d.kind === 'image') t.innerHTML = `<img src="${src}" alt="${d.name}">`;
+  else if (d.kind === 'video') t.innerHTML = `<video src="${src}" muted preload="metadata"></video><span class="badge">clip</span>`;
   else t.innerHTML = AUDIO_SVG + `<span class="badge">score</span>`;
   t.title = d.name;
-  t.addEventListener('click', () => window.open(d.url, '_blank'));
+  t.addEventListener('click', () => window.open(src, '_blank'));
+  const mediaEl = t.querySelector('img,video'); if (mediaEl) galleryThumbs[d.url] = mediaEl;
   gallery.append(t);
   exportAllBtn.disabled = false;
 }

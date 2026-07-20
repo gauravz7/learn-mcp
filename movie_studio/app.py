@@ -201,10 +201,10 @@ async def _run_turn(user_id: str, adk_sid: str, message: str):
                 fr = getattr(part, "function_response", None)
                 if fr:
                     result = _parse_tool_result(fr.response)
+                    for m in _collect_media(result):          # paint the image the instant it's ready
+                        yield _sse({"type": "media", "tool": fr.name, **m})
                     yield _sse({"type": "activity", "kind": "result",
                                 "name": fr.name, "summary": _result_summary(result)})
-                    for m in _collect_media(result):
-                        yield _sse({"type": "media", "tool": fr.name, **m})
                 text = getattr(part, "text", None)
                 if text:
                     yield _sse({"type": "text", "text": text})
@@ -233,8 +233,11 @@ def get_asset(user: str, project: str, name: str, download: int = 0):
     if not path.exists() or not path.is_file():
         return Response(status_code=404)
     mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    # Generated files are MUTABLE — a regenerated shot/scene reuses the same filename. Tell the
+    # browser to always revalidate so it never shows a stale cached image after a regenerate.
     return FileResponse(path, media_type=mime, filename=(name if download else None),
-                        content_disposition_type=("attachment" if download else "inline"))
+                        content_disposition_type=("attachment" if download else "inline"),
+                        headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 @app.get("/assets/{user}/{project}")

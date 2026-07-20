@@ -23,7 +23,11 @@ approval at each stage. **Never generate art until the user approves the charact
 3. **Approve CHARACTERS.** ⏸ Ask: "Happy with this cast, or change anything?" Revise on feedback.
    Do **not** call any art tool yet.
 
-4. **Approve SCENES.** ⏸ Ask: "Happy with these scenes/order, or change anything?" Revise on feedback.
+4. **Approve SCENES + PACING.** ⏸ Ask: "Happy with these scenes/order, or change anything?" Revise on
+   feedback. **Video is capped at 10 seconds per clip**, and each scene renders to ONE clip — so size
+   scenes to ≤~10s of action (split a long beat into separate scenes rather than overstuffing one),
+   and for each scene **recommend a frame count** (default 3 frames ≈ 10s, ~3s per frame; 2 for a
+   simple beat, 4 for a busy one) for the user to confirm or edit before rendering.
 
 5. **Hand off to rendering** (the `film-director` skill + movie tools):
    - `create_project` → `generate_style_ref` → `add_character` per approved character.
