@@ -55,6 +55,13 @@ button{font-family:inherit; cursor:pointer}
 .login-btn{border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:600;padding:12px;
   background:linear-gradient(135deg,var(--primary),var(--accent));box-shadow:0 10px 24px rgba(236,72,153,.35)}
 .login-btn:hover{transform:translateY(-1px)}
+.up-field{color:var(--fg);font-size:14px;background:rgba(255,255,255,.06);border:1px solid var(--border);
+  border-radius:12px;padding:11px 13px;outline:none}
+.up-field:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(236,72,153,.18)}
+select.up-field{appearance:none;cursor:pointer}
+.up-field[type=file]{padding:9px 12px;font-size:12.5px;color:var(--fg-dim)}
+.up-msg{margin:2px 0 0;font-size:12px;color:var(--fg-dim);min-height:1em}
+.up-msg.err{color:var(--err)} .up-msg.ok{color:var(--ok)}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--fg-dim);box-shadow:0 0 0 0 rgba(52,211,153,.5)}
 .dot.on{background:var(--ok);animation:pulse 2s infinite}
 .dot.busy{background:var(--primary);animation:pulse 1s infinite}

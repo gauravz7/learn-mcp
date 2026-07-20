@@ -566,6 +566,10 @@ def mv_generate_microshot(user_id: str, project_id: str, scene_id: str,
     if scene.get("establish_uri") and os.path.exists(scene["establish_uri"]):
         refs.append(scene["establish_uri"])
     refs += [sheet for sheet, _ in cast]
+    props = _prop_refs(b)                       # user-uploaded props → extra reference images
+    refs += [r for r, _ in props]
+    prop_note = (f" Include these props, matching their reference images: "
+                 f"{', '.join(n for _, n in props)}." if props else "")
 
     def _panel_desc(i: int, beat) -> str:
         action, emotion, _dialogue, speaker = _beat_fields(beat)
@@ -582,9 +586,9 @@ def mv_generate_microshot(user_id: str, project_id: str, scene_id: str,
         + ", ".join(f"SHOT {i}" for i in range(1, panels + 1)) + ". "
         f"Use the SAME characters ({names}) from the reference sheets and the SAME setting from "
         "the scene reference — identical faces, wardrobe, art style and lighting in EVERY panel. "
-        + beats_text + _screen_direction(cast) + " Convey each character's emotion through facial "
-        f"expression and body language. {b.get('style_guide', '')}. Cinematic, consistent "
-        "character identity across all panels; no gibberish text besides the SHOT labels.")
+        + beats_text + _screen_direction(cast) + prop_note + " Convey each character's emotion "
+        f"through facial expression and body language. {b.get('style_guide', '')}. Cinematic, "
+        "consistent character identity across all panels; no gibberish text besides the SHOT labels.")
 
     expects = (f"a {panels}-panel left-to-right storyboard strip; EVERY panel shows {names} with "
                "consistent identity, wardrobe, art style and lighting matching the references; "
@@ -932,6 +936,60 @@ def review_asset(user_id: str, project_id: str, name: str, expects: str = "") ->
             refs.append(ref)
     r = imagegen.review_image(str(path), expects or "the intended scene and characters", refs=refs[:5])
     return {"name": fname, "resource_uri": _asset_uri(user_id, project_id, str(path)), **r}
+
+
+def mv_import_character(user_id: str, project_id: str, name: str, description: str = "",
+                       image_name: str = "") -> dict:
+    """Register an ALREADY-UPLOADED image (saved in the project's media dir, e.g. by the Studio
+    upload endpoint) as a character reference — NO generation. The character then composites into
+    shots exactly like a generated one (mv_generate_shot / generate_microshot read refs[0])."""
+    src = _gen_dir(user_id, project_id) / _safe_name(image_name.split("/")[-1])
+    if not src.exists():
+        raise ValueError(f"uploaded image not found for import: {image_name}")
+    cid = store.add_character(user_id, project_id, name,
+                             description or f"user-uploaded reference for {name}", refs=[str(src)])
+    return {"char_id": cid, "name": name, "ref_uri": str(src), "uploaded": True,
+            "resource_uri": _asset_uri(user_id, project_id, str(src))}
+
+
+@mcp.tool()
+def import_character(user_id: str, project_id: str, name: str, description: str = "",
+                    image_name: str = "") -> dict:
+    """Register a USER-UPLOADED image as a character reference sheet (no AI generation). `image_name`
+    is a file already saved in the project's media dir (via the Studio upload). The character is then
+    reused across shots like any other — reference it by the returned char_id; do NOT regenerate it."""
+    return mv_import_character(user_id, project_id, name, description, image_name)
+
+
+def mv_import_prop(user_id: str, project_id: str, name: str, description: str = "",
+                   image_name: str = "") -> dict:
+    """Register a USER-UPLOADED prop image (no generation). Props are added as extra reference
+    images to scene micro-shots so the model includes them; they don't need a char slot."""
+    src = _gen_dir(user_id, project_id) / _safe_name(image_name.split("/")[-1])
+    if not src.exists():
+        raise ValueError(f"uploaded image not found for import: {image_name}")
+    pid = store.add_prop(user_id, project_id, name,
+                         description or f"user-uploaded prop: {name}", refs=[str(src)])
+    return {"prop_id": pid, "name": name, "ref_uri": str(src), "uploaded": True,
+            "resource_uri": _asset_uri(user_id, project_id, str(src))}
+
+
+@mcp.tool()
+def import_prop(user_id: str, project_id: str, name: str, description: str = "",
+               image_name: str = "") -> dict:
+    """Register a USER-UPLOADED prop image (no AI generation). The prop is fed as a reference into
+    scene micro-shots so the model places it; reference it by its returned prop_id."""
+    return mv_import_prop(user_id, project_id, name, description, image_name)
+
+
+def _prop_refs(bible: dict) -> list[tuple[str, str]]:
+    """(ref_path, name) for every uploaded prop with an on-disk reference image."""
+    out: list[tuple[str, str]] = []
+    for p in bible.get("props", {}).values():
+        ref = (p.get("refs") or [None])[0]
+        if ref and os.path.exists(ref):
+            out.append((ref, p.get("name", "prop")))
+    return out
 
 
 @mcp.tool()

@@ -18,7 +18,7 @@ import os
 import sys
 from pathlib import Path
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
 from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
                                Response, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
@@ -36,7 +36,9 @@ APP_NAME = "movie_director"
 
 # import the SAME agent the CLI uses (movie_agent/agent.py defines root_agent)
 sys.path.insert(0, str(REPO / "movie_agent"))
-from agent import root_agent  # noqa: E402
+from agent import root_agent, _mcp_headers  # noqa: E402
+
+MCP_URL = os.environ["MCP_URL"]
 
 from google.adk.runners import Runner  # noqa: E402
 from google.adk.sessions import DatabaseSessionService  # noqa: E402
@@ -221,6 +223,59 @@ async def chat_stream(session: str = Query(...), message: str = Query(...),
     return StreamingResponse(_run_turn(_clean_user(user), session, message),
                              media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+# --------------------------------------------------------------------------- uploads (BYO character/prop)
+async def _mcp_call(tool: str, args: dict) -> dict:
+    """Call a movie-mcp tool directly (Studio registers an upload without going through the LLM).
+    Uses the same Bearer auth as the agent so it works against an IAM-gated Cloud Run backend."""
+    from mcp import ClientSession
+    from mcp.client.streamable_http import streamablehttp_client
+    headers = _mcp_headers() or None
+    async with streamablehttp_client(MCP_URL, headers=headers, timeout=60) as (r, w, _):
+        async with ClientSession(r, w) as s:
+            await s.initialize()
+            res = await s.call_tool(tool, args)
+            if getattr(res, "structuredContent", None):
+                return res.structuredContent
+            return _parse_tool_result({"content": [c.model_dump() for c in (res.content or [])]})
+
+
+_UPLOAD_EXT = {"image/png": ".png", "image/jpeg": ".jpg", "image/jpg": ".jpg", "image/webp": ".webp"}
+
+
+@app.post("/upload")
+async def upload(request: Request, project: str = Query(...), name: str = Query(...),
+                 user: str = Query(USER_ID), kind: str = Query("character"),
+                 description: str = Query("")):
+    """Upload a character or prop image and register it on the current project (no AI generation).
+    The image is sent as the raw request body; it's saved into the project's shared media dir and
+    then registered via import_character / import_prop so the director reuses it in scenes."""
+    uid = _clean_user(user)
+    data = await request.body()
+    if not data:
+        return JSONResponse({"error": "empty upload"}, status_code=400)
+    if len(data) > 15 * 1024 * 1024:
+        return JSONResponse({"error": "file too large (max 15MB)"}, status_code=413)
+    ext = _UPLOAD_EXT.get(request.headers.get("content-type", "").split(";")[0].strip().lower(), ".png")
+    safe = "".join(ch for ch in name if ch.isalnum() or ch in ("-", "_")) or "upload"
+    tag = "prop" if kind == "prop" else "char"
+    fname = f"upload_{tag}_{safe}{ext}"
+    try:
+        d = GEN_ROOT / _safe_component(uid) / _safe_component(project)
+    except ValueError:
+        return JSONResponse({"error": "bad user/project"}, status_code=400)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / fname).write_bytes(data)
+    tool = "import_prop" if kind == "prop" else "import_character"
+    try:
+        r = await _mcp_call(tool, {"user_id": uid, "project_id": project, "name": name,
+                                   "description": description, "image_name": fname})
+    except Exception as e:  # saved to disk but couldn't register — tell the UI
+        return JSONResponse({"error": f"saved but registration failed: {type(e).__name__}: {e}"},
+                            status_code=502)
+    return JSONResponse({"ok": True, "kind": kind, "name": name,
+                        "asset_url": f"/asset/{uid}/{project}/{fname}", **(r or {})})
 
 
 # --------------------------------------------------------------------------- media proxy

@@ -271,6 +271,30 @@ def add_location(
         return loc_id
 
 
+def add_prop(
+    user_id: str,
+    project_id: str,
+    name: str,
+    desc: str,
+    refs: list | None = None,
+) -> str:
+    """Add a prop (user-uploaded object reference); returns the generated prop_id (uuid hex[:6]).
+    Stored under a ``props`` map, created lazily so older bibles keep working."""
+    with _LOCK:
+        bible = _load(user_id, project_id)
+        props = bible.setdefault("props", {})
+        prop_id = _new_id(6)
+        while prop_id in props:
+            prop_id = _new_id(6)
+        props[prop_id] = {
+            "name": name,
+            "desc": desc,
+            "refs": list(refs) if refs is not None else [],
+        }
+        _persist(bible)
+        return prop_id
+
+
 def set_scene(
     user_id: str,
     project_id: str,

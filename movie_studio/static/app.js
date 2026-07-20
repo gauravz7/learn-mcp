@@ -16,8 +16,17 @@ const loginOverlay = document.getElementById('login');
 const loginForm = document.getElementById('loginForm');
 const ldapInput = document.getElementById('ldapInput');
 const userChip = document.getElementById('userChip');
+const uploadBtn = document.getElementById('uploadBtn');
+const uploadModal = document.getElementById('uploadModal');
+const uploadForm = document.getElementById('uploadForm');
+const uploadKind = document.getElementById('uploadKind');
+const uploadName = document.getElementById('uploadName');
+const uploadFile = document.getElementById('uploadFile');
+const uploadCancel = document.getElementById('uploadCancel');
+const uploadMsg = document.getElementById('uploadMsg');
 
 let USER = localStorage.getItem('ldap') || '';
+let CURRENT_PROJECT = null;         // learned from the stream; needed to attach uploads
 let SESSION = null;
 let SESSIONS = [];                  // persisted sessions for this user (their LDAP)
 let busy = false;
@@ -109,6 +118,39 @@ function showTab(which) {
 }
 if (tabGallery) tabGallery.addEventListener('click', () => showTab('gallery'));
 if (tabActivity) tabActivity.addEventListener('click', () => showTab('activity'));
+
+// ---- uploads: bring your own character / prop (optional) ----
+function setProject(pid) { if (pid && pid !== CURRENT_PROJECT) CURRENT_PROJECT = pid; }
+function captureProject(url) { const m = (url || '').match(/\/asset\/[^/]+\/([^/]+)\//); if (m) setProject(m[1]); }
+function captureProjectFromText(s) { const m = (s || '').match(/project_id[=:]\s*([A-Za-z0-9_-]{4,})/); if (m) setProject(m[1]); }
+
+if (uploadBtn) uploadBtn.addEventListener('click', () => {
+  if (!CURRENT_PROJECT) {
+    alert('Start your story first — once the director creates the project, you can upload characters/props into it.');
+    return;
+  }
+  uploadMsg.textContent = ''; uploadMsg.className = 'up-msg';
+  uploadModal.hidden = false; uploadName.focus();
+});
+if (uploadCancel) uploadCancel.addEventListener('click', () => { uploadModal.hidden = true; });
+if (uploadForm) uploadForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = uploadFile.files[0], nm = (uploadName.value || '').trim();
+  if (!f || !nm) { uploadMsg.textContent = 'Pick an image and enter a name.'; uploadMsg.className = 'up-msg err'; return; }
+  uploadMsg.textContent = 'Uploading…'; uploadMsg.className = 'up-msg';
+  try {
+    const q = new URLSearchParams({ user: USER, project: CURRENT_PROJECT, name: nm, kind: uploadKind.value });
+    const r = await fetch('/upload?' + q.toString(), { method: 'POST', headers: { 'Content-Type': f.type || 'image/png' }, body: f });
+    const d = await r.json();
+    if (!r.ok || d.error) { uploadMsg.textContent = d.error || 'Upload failed'; uploadMsg.className = 'up-msg err'; return; }
+    uploadMsg.textContent = `✓ Added ${uploadKind.value} “${nm}”`; uploadMsg.className = 'up-msg ok';
+    if (d.asset_url) addToGallery({ kind: 'image', url: d.asset_url, name: nm, src: d.asset_url + '?v=' + Date.now() });
+    const note = addAiMsg(); note.thinking.remove();
+    note.text = `📎 Uploaded ${uploadKind.value} “${nm}”. Ask me to use it and I'll bring it into your scenes (I won't regenerate it).`;
+    note.bubble.textContent = note.text; scrollDown();
+    setTimeout(() => { uploadModal.hidden = true; uploadForm.reset(); }, 1000);
+  } catch (err) { uploadMsg.textContent = 'Upload error: ' + err; uploadMsg.className = 'up-msg err'; }
+});
 
 function renderHistory(events) {
   let ai = null;
@@ -218,12 +260,14 @@ function runTurn(message, ai) {
       const c = el('span', 'chip', `<span class="spin"></span>${prettyTool(d.name)}`);
       ai.chips.append(c); activeChips[d.name + Math.random()] = c; scrollDown();
     } else if (d.type === 'activity') {
+      if (d.summary) captureProjectFromText(d.summary);
       addActivity(d);
     } else if (d.type === 'text') {
       ai.text += (ai.text ? '\n' : '') + d.text;
       ai.bubble.textContent = ai.text; scrollDown();
     } else if (d.type === 'media') {
       ai.thinking.remove();
+      captureProject(d.url);
       d.src = d.url + (d.url.includes('?') ? '&' : '?') + 'v=' + Date.now();  // bust cache on regenerate
       addMediaCard(ai.media, d); addToGallery(d); scrollDown();
     } else if (d.type === 'error') {
