@@ -17,9 +17,15 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 PAGES = {
     "agentic-studio-series": ("blog/agentic-studio-series.md",
                               "The Agentic Studio", "Series"),
+    "part-1-thesis": ("blog/part-1-thesis.md",
+                      "The Studio Is a Distributed System — The Agentic Studio",
+                      "Part 1 · Thesis"),
     "pre-production-barrier": ("blog/pre-production-barrier.md",
-                               "The pre-production barrier — The Agentic Studio",
+                               "Barrier, Fan-out, Join — The Agentic Studio",
                                "Part 2 · Architecture"),
+    "part-3-moat": ("blog/part-3-moat.md",
+                    "Consistency Is the Product — The Agentic Studio",
+                    "Part 3 · Moat"),
     "index": ("blog/mcp-and-skills.md",
               "MCP and Skills — The Agentic Studio", "Foundations · MCP & Skills"),
 }

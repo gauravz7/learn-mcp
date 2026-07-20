@@ -89,7 +89,7 @@ prompt and some hope.
 
 ---
 
-# Part 2 — For the builder: the field report
+# The field report (for builders)
 
 Everything below is real code from the pipeline. Two servers, one of them (`movie-mcp`) a
 multi-module film-production app. The bible — a per-user, per-project JSON document — is the source

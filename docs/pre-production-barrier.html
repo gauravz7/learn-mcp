@@ -1,5 +1,5 @@
 <!doctype html><meta charset=utf-8>
-<title>The pre-production barrier — The Agentic Studio</title><style>
+<title>Barrier, Fan-out, Join — The Agentic Studio</title><style>
 body{max-width:740px;margin:40px auto;font:17px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial;color:#222;padding:0 16px}
 h1{font-size:2em;line-height:1.2} h2{margin-top:1.6em;border-bottom:1px solid #eee;padding-bottom:.2em}
 h3{margin-top:1.3em} hr{border:none;border-top:2px solid #eee;margin:2.5em 0}
@@ -9,16 +9,16 @@ pre.mermaid{background:#fff;text-align:center}
 table{border-collapse:collapse;width:100%;margin:1em 0} th,td{border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:.92em}
 th{background:#fafafa} blockquote{border-left:4px solid #ddd;margin:1em 0;padding:.2em 1em;color:#555} img{max-width:100%}
 nav.posts{font-size:.9em;color:#666;margin-bottom:1.5em} nav.posts a{color:#06c;text-decoration:none}</style>
-<nav class="posts">The Agentic Studio: <a href="agentic-studio-series.html">Series</a> &middot; <strong>Part 2 · Architecture</strong> &middot; <a href="index.html">Foundations · MCP & Skills</a></nav>
-<h1>Model the crew, not the movie: the pre-production barrier is your agent architecture</h1>
-<p><em>I built an AI film-production pipeline as an MCP server — it casts characters, designs a look,
-plans shots, renders keyframes, and checks its own dailies. The interesting part wasn't the image
-model. It was discovering that the single most important architectural decision happens </em><em>before any
-expensive work runs</em><em>: a short, strictly sequential "pre-production" gate that every parallel step
-downstream depends on. Get it right and the rest fans out cheaply and safely. Get it wrong and you
-pay for it N times over.</em></p>
+<nav class="posts">The Agentic Studio: <a href="agentic-studio-series.html">Series</a> &middot; <a href="part-1-thesis.html">Part 1 · Thesis</a> &middot; <strong>Part 2 · Architecture</strong> &middot; <a href="part-3-moat.html">Part 3 · Moat</a> &middot; <a href="index.html">Foundations · MCP & Skills</a></nav>
+<h1>Part 2 · Barrier, Fan-out, Join — the architecture of a creative agent</h1>
+<p><em>Part 2 of </em><em><a href="agentic-studio-series.html">The Agentic Studio</a></em><em>. The studio is a scheduler over
+stochastic renders; this is how the scheduler is built. One decision dominates the design, and it
+happens </em><em>before any GPU-second is spent</em><em>: a short, strictly ordered barrier — treatment, look,
+cast — that every downstream branch conditions on. Lock it and N scenes fan out in parallel, cheaply
+and safely. Skip it and you pay for the same inconsistency N times over. The pipeline is a real MCP
+server; every claim below is a mechanism, not a metaphor.</em></p>
 <hr />
-<h1>Part 1 — For the CTO: the decision in five minutes</h1>
+<h1>The five-minute version (for architects)</h1>
 <h2>The one idea</h2>
 <blockquote>
 <p><strong>In an agent system, the expensive failures come from fanning out before you've locked the
@@ -83,7 +83,7 @@ You stop and confirm the four things that everything depends on. After that, you
 then parallelize.</strong> If you can't name your barrier, you don't have an architecture — you have a
 prompt and some hope.</p>
 <hr />
-<h1>Part 2 — For the builder: the field report</h1>
+<h1>The field report (for builders)</h1>
 <p>Everything below is real code from the pipeline. Two servers, one of them (<code>movie-mcp</code>) a
 multi-module film-production app. The bible — a per-user, per-project JSON document — is the source
 of truth; each stage reads the previous stage's artifact from it, never from chat history. That

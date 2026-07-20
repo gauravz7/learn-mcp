@@ -23,15 +23,24 @@ a prompting problem. It's a systems problem: shared state, ordering, validation,
 That's what the Agentic Studio is — and every part of it maps to something you'd recognize from
 building any stateful distributed system.
 
+**In plain terms.** A text-to-image model is a wildly talented freelance illustrator who takes one
+commission at a time — and forgets you the instant it's delivered. Ask for "the same hero" twice and
+you get two different people, because nothing carries over between jobs. A *studio* is the production
+office around that illustrator: it keeps the series bible, hands every artist the same character
+sheet, enforces the house style, and rejects the panel where the hero's jacket changed color. The
+illustrator makes a picture; the office makes a *coherent body of work*. Only the second one is a
+film — and the office, not the illustrator, is what we're building.
+
 ## The architecture, in primitives
 
 Strip the film vocabulary and here is the machine:
 
-- **A typed state store (the "bible").** One JSON document per user/project, strictly
-  partitioned, atomic writes under a lock, IDs sanitized against path traversal. It is the single
-  source of truth; every stage reads the previous stage's output from it, never from chat history.
-  **The handoff artifact is the interface** — the same discipline as passing typed messages between
-  services instead of sharing mutable memory.
+- **A typed state store (the "bible").** In film, the "bible" is the binder every department works
+  from — who the characters are, what the world looks like, what's happened so far. Here it's one JSON
+  document per user/project (strictly partitioned, atomic writes under a lock, project names sanitized
+  so a bad one can't escape its folder). It is the single source of truth; every stage reads the
+  previous stage's output from it, never from chat history. **The handoff artifact is the interface** —
+  the same discipline as passing typed messages between services instead of sharing mutable memory.
 - **A dependency-ordered pipeline with a barrier.** `create_project → generate_style_ref →
   add_character → establish_scene → plan_scene → generate_shot → start/poll video`. The first three
   are a **sequential barrier**: everything downstream conditions on the look and the cast. After the
@@ -82,7 +91,8 @@ studio is an *agent*, not a bigger model.
 ### Part 1 — The Thesis: *The Studio Is a Distributed System*
 For leaders and architects. Why the next generation of multimedia is orchestration, not generation;
 the render-function-vs-studio distinction; and why MCP + Skills + cheap inference make the
-coordination layer buildable now. *(Forthcoming.)*
+coordination layer buildable now.
+→ **[Read Part 1 →](part-1-thesis.html)**
 
 ### Part 2 — The Architecture: *Barrier, Fan-out, Join*
 For builders. The load-bearing decision — the **pre-production barrier** — and the full skill+MCP
@@ -94,7 +104,8 @@ the context economics that make the fan-out scale.
 The invariants above, taken seriously: identity across shots, continuity across scenes,
 cross-domain compositing, and the unit economics ($/scene, $/QC retry, $/second of video) that make
 the marginal cost of a scene approach zero. Where it goes: video and sound as the same pipeline,
-human-in-the-loop as direction not babysitting. *(Forthcoming.)*
+human-in-the-loop as direction not babysitting.
+→ **[Read Part 3 →](part-3-moat.html)**
 
 ---
 
