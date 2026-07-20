@@ -463,24 +463,41 @@ def mv_get_shot_video(user_id: str, project_id: str, shot_id: str) -> dict:
 #      clean character sheets + background plate so identity holds. (Proven end-to-end.)
 # ======================================================================================
 def _scene_cast(bible: dict, scene_id: str, subjects: list[str] | None = None,
-                limit: int = 3) -> list[tuple[str, str]]:
-    """(ref_path, name) for the characters in a scene. Uses `subjects` (ids/names) if given,
-    else the characters referenced by the scene's shots, else all project characters. Only
-    those with a reference sheet on disk; capped at `limit` (few refs = reliable identity)."""
+                beats: list | None = None, limit: int = 3) -> list[tuple[str, str]]:
+    """(ref_path, name) for the characters ACTUALLY in a scene — resolved in priority order from:
+    explicit `subjects`, the beats' `speaker`s, the scene's PERSISTED cast, its blocking, then its
+    shots. Only if NONE of those name anyone does it fall back to all project characters. This is
+    scene-specific so a one-character scene never pulls in the whole cast (which made videos add
+    people who aren't in the scene). Capped at `limit`; only characters with a sheet on disk."""
+    sc = bible.get("scenes", {}).get(scene_id, {})
     cids: list[str] = []
-    if subjects:
-        cids = [c for c in (_match_char(bible, s) for s in subjects) if c]
+
+    def _add(tok: str) -> None:
+        cid = _match_char(bible, tok)
+        if cid and cid not in cids:
+            cids.append(cid)
+
+    if subjects:                                     # explicit list = authoritative (who is PRESENT)
+        for s in subjects:
+            _add(s)
     else:
+        # UNION of everyone present in the scene — NOT just who speaks. A character can be in the
+        # frame without a line, so we pool: persisted cast + blocking + shot anchors + beat speakers.
+        for tok in (sc.get("cast") or []):           # persisted when the micro-shot was built
+            _add(tok)
+        for tok in (sc.get("blocking") or {}):       # blocking lists everyone placed in the scene
+            _add(tok)
         for s in bible.get("shots", []):
-            if s.get("scene") != scene_id:
-                continue
-            cast, _ = _resolve_cast(bible, s)
-            for ref, name in cast:
-                cid = _match_char(bible, name)
-                if cid and cid not in cids:
-                    cids.append(cid)
-    if not cids:
-        cids = list(bible.get("characters", {}))
+            if s.get("scene") == scene_id:
+                for _ref, nm in _resolve_cast(bible, s)[0]:
+                    _add(nm)
+        for beat in (beats or []):                   # speakers, in case blocking/shots are absent
+            _a, _e, _d, speaker = _beat_fields(beat)
+            if speaker:
+                _add(speaker)
+        if not cids:                                 # last resort only (nothing named the cast)
+            cids = list(bible.get("characters", {}))
+
     out: list[tuple[str, str]] = []
     seen: set[str] = set()
     for cid in cids:
@@ -557,9 +574,9 @@ def mv_generate_microshot(user_id: str, project_id: str, scene_id: str,
     b = store.get_project(user_id, project_id)
     scene = b.get("scenes", {}).get(scene_id, {})
     out = _gen_dir(user_id, project_id)
-    cast = _scene_cast(b, scene_id, subjects)
     beat_list = _scene_beats(b, scene_id, beats, panels)
     panels = len(beat_list)
+    cast = _scene_cast(b, scene_id, subjects, beats=beat_list)   # beats' speakers drive the cast
     names = ", ".join(n for _, n in cast) or "the characters"
 
     refs: list[str] = []
@@ -615,8 +632,10 @@ def mv_generate_microshot(user_id: str, project_id: str, scene_id: str,
 
     path = out / f"microshot_{scene_id}.png"
     path.write_bytes(Path(src).read_bytes())
+    # persist the resolved cast so the VIDEO step animates the SAME characters (not all of them)
+    cast_ids = [cid for cid in (_match_char(b, nm) for _, nm in cast) if cid]
     store.update_scene(user_id, project_id, scene_id,
-                       {"microshot_uri": str(path), "qc_ok": review["ok"],
+                       {"microshot_uri": str(path), "cast": cast_ids, "qc_ok": review["ok"],
                         "qc_score": review.get("score"), "qc_issues": review.get("issues", "")})
     return {"scene_id": scene_id, "microshot_uri": str(path), "panels": panels,
             "beats": beat_list, "cast": [n for _, n in cast], "qc_ok": review["ok"],
@@ -636,14 +655,16 @@ def mv_start_scene_video(user_id: str, project_id: str, scene_id: str,
     if not micro or not os.path.exists(micro):
         raise ValueError(f"scene {scene_id} has no micro-shot; run generate_microshot first")
     duration_seconds = min(int(duration_seconds), videogen.OMNI_MAX_DURATION)  # Omni caps at 10s
-    cast = _scene_cast(b, scene_id)
     beat_list = _scene_beats(b, scene_id, beats, 3)
+    cast = _scene_cast(b, scene_id, beats=beat_list)   # scene's own cast (persisted at micro-shot)
 
     refs = [micro] + [sheet for sheet, _ in cast]
     if scene.get("establish_uri") and os.path.exists(scene["establish_uri"]):
         refs.append(scene["establish_uri"])
 
     names = ", ".join(n for _, n in cast) or "the characters"
+    only = (f" Feature ONLY {names} — do NOT add any other people or characters who are not in "
+            "the reference sheets." if cast else "")
     n = len(beat_list)
     win = max(1, round(duration_seconds / n))
     has_dialogue = False
@@ -675,7 +696,7 @@ def mv_start_scene_video(user_id: str, project_id: str, scene_id: str,
         f"The FIRST reference image is a {n}-panel micro-shot storyboard (SHOT 1..{n}). Generate "
         f"ONE continuous {duration_seconds}-second video that plays those beats IN ORDER. Feature "
         f"{names} exactly as in their reference sheets, in the setting from the background "
-        f"reference. {windows}{_screen_direction(cast)}{audio_line} {b.get('style_guide', '')}. "
+        f"reference.{only} {windows}{_screen_direction(cast)}{audio_line} {b.get('style_guide', '')}. "
         "Consistent character identity, emotive acting, gentle cinematic motion, 16:9.")
 
     try:
@@ -959,6 +980,46 @@ def import_character(user_id: str, project_id: str, name: str, description: str 
     is a file already saved in the project's media dir (via the Studio upload). The character is then
     reused across shots like any other — reference it by the returned char_id; do NOT regenerate it."""
     return mv_import_character(user_id, project_id, name, description, image_name)
+
+
+@mcp.tool()
+async def update_character(user_id: str, project_id: str, character: str, change: str,
+                          ctx: Context, prompt: str = "") -> dict:
+    """Change a character's WARDROBE/APPEARANCE (e.g. 'dress to dark blue', 'add glasses'). This
+    re-styles their REFERENCE SHEET while keeping identity — the ONLY reliable way to change an
+    outfit, because scene compositing is locked to the sheet (a per-scene prompt won't change it).
+    `character` = char_id or name. AFTER this, RE-RUN generate_microshot for scenes with them."""
+    await ctx.info(f"Restyling {character}: {change}…")
+    return mv_update_character(user_id, project_id, character, change, prompt)
+
+
+def mv_update_character(user_id: str, project_id: str, character: str, change: str,
+                        prompt: str = "") -> dict:
+    """Re-style a character's REFERENCE SHEET to change wardrobe/appearance while KEEPING identity,
+    then point the character at the new sheet. Every later shot composites from refs[0], so this is
+    how you actually change an outfit/hair/colour — a per-scene prompt can't (the compositing is
+    locked to the sheet). `character` may be a char_id or name; `change` e.g. 'dress to dark blue'."""
+    b = store.get_project(user_id, project_id)
+    cid = _match_char(b, character)
+    if not cid:
+        raise ValueError(f"character not found: {character!r}")
+    c = b["characters"][cid]
+    ref = (c.get("refs") or [None])[0]
+    if not ref or not os.path.exists(ref):
+        raise ValueError(f"character {c.get('name', cid)!r} has no reference sheet to edit")
+    name = c.get("name", cid)
+    edit = prompt.strip() or (
+        f"Edit this character reference sheet: keep the SAME character — identical face, hairstyle, "
+        f"body type, age, skin tone and art style — but change {change}. Keep the front and 3/4 "
+        f"views on a neutral background. Change ONLY {change}; leave everything else identical.")
+    out = _gen_dir(user_id, project_id)
+    data, mime = imagegen.compose_image(edit, [ref])
+    newpath = imagegen.save_bytes(data, out, f"char_{name.lower().replace(' ', '_')}_upd", mime)
+    desc = (c.get("desc", "") + f"; {change}").strip("; ")
+    store.update_character(user_id, project_id, cid, {"refs": [str(newpath)], "desc": desc})
+    return {"char_id": cid, "name": name, "change": change, "ref_uri": str(newpath),
+            "resource_uri": _asset_uri(user_id, project_id, str(newpath)),
+            "note": "reference sheet restyled — re-run generate_microshot for scenes with this character"}
 
 
 def mv_import_prop(user_id: str, project_id: str, name: str, description: str = "",

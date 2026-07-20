@@ -249,6 +249,19 @@ def add_character(
         return char_id
 
 
+def update_character(user_id: str, project_id: str, char_id: str, patch: dict) -> dict:
+    """Merge ``patch`` into a character (e.g. new ``refs`` after a wardrobe re-style, or ``desc``);
+    returns the updated character. Raises KeyError if the char_id doesn't exist for that user."""
+    with _LOCK:
+        bible = _load(user_id, project_id)
+        c = bible.get("characters", {}).get(char_id)
+        if c is None:
+            raise KeyError(f"character {char_id!r} not found in project {project_id!r}")
+        c.update(patch)
+        _persist(bible)
+        return c
+
+
 def add_location(
     user_id: str,
     project_id: str,
