@@ -43,14 +43,12 @@ th{{background:#fafafa}} blockquote{{border-left:4px solid #ddd;margin:1em 0;pad
 video{{max-width:100%;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.14);margin:.4em 0}}
 .gallery{{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:1.2em 0}}
 .gallery figure{{margin:0}} .gallery figcaption{{font-size:.82em;color:#777;margin-top:4px}}
-.site-nav{{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin:0 0 2em;padding-bottom:14px;border-bottom:1px solid #eee}}
-.site-nav .brand{{font-weight:700;color:#111;text-decoration:none;font-size:1.06em;margin-right:auto}}
-.navlinks{{display:flex;flex-wrap:wrap;gap:8px}}
-.nav-item{{display:flex;flex-direction:column;line-height:1.15;text-decoration:none;color:#06c;padding:6px 12px;border:1px solid #e7e7e7;border-radius:10px;background:#fafafa;transition:all .12s}}
-.nav-item span{{font-size:.72em;color:#9a9a9a;font-weight:400}}
-.nav-item:hover{{border-color:#06c;background:#f0f7ff}}
-.nav-item.active{{background:#111;border-color:#111;color:#fff;pointer-events:none}}
-.nav-item.active span{{color:#bbb}}</style>
+.site-nav{{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 2em;padding-bottom:12px;border-bottom:1px solid #eee}}
+.site-nav .brand{{font-weight:700;color:#111;text-decoration:none;font-size:1.05em;margin-right:auto}}
+.navlinks{{display:flex;flex-wrap:wrap;gap:6px}}
+.nav-item{{text-decoration:none;color:#06c;padding:5px 12px;border-radius:999px;font-size:.92em;white-space:nowrap;transition:background .12s}}
+.nav-item:hover{{background:#eef5ff}}
+.nav-item.active{{background:#06c;color:#fff;pointer-events:none}}</style>
 """
 
 MERMAID = ('<script type="module">'
@@ -63,7 +61,7 @@ def nav(active: str) -> str:
     for slug, (_src, _title, short, sub) in PAGES.items():
         cls = "nav-item active" if slug == active else "nav-item"
         href = "#" if slug == active else f"{slug}.html"
-        links.append(f'<a class="{cls}" href="{href}"><b>{short}</b><span>{sub}</span></a>')
+        links.append(f'<a class="{cls}" href="{href}" title="{sub}">{short}</a>')
     return ('<header class="site-nav">'
             '<a class="brand" href="agentic-studio-series.html">🎬 The Agentic Studio</a>'
             '<nav class="navlinks">' + "".join(links) + "</nav></header>\n")
