@@ -13,21 +13,21 @@ import markdown
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-# slug -> (source markdown, <title>, nav label). Order defines the nav order.
+# slug -> (source markdown, <title>, short nav label, sub-label). Order defines the nav order.
 PAGES = {
     "agentic-studio-series": ("blog/agentic-studio-series.md",
-                              "The Agentic Studio", "Series"),
+                              "The Agentic Studio", "Series", "Overview"),
     "part-1-thesis": ("blog/part-1-thesis.md",
                       "The Studio Is a Distributed System — The Agentic Studio",
-                      "Part 1 · Thesis"),
+                      "Part 1", "Thesis"),
     "pre-production-barrier": ("blog/pre-production-barrier.md",
                                "Barrier, Fan-out, Join — The Agentic Studio",
-                               "Part 2 · Architecture"),
+                               "Part 2", "Architecture"),
     "part-3-moat": ("blog/part-3-moat.md",
                     "Consistency Is the Product — The Agentic Studio",
-                    "Part 3 · Moat"),
+                    "Part 3", "Moat"),
     "index": ("blog/mcp-and-skills.md",
-              "MCP and Skills — The Agentic Studio", "Foundations · MCP & Skills"),
+              "MCP and Skills — The Agentic Studio", "Foundations", "MCP & Skills"),
 }
 
 STYLE = """<!doctype html><meta charset=utf-8>
@@ -40,7 +40,17 @@ pre{{background:#f6f8fa;padding:14px;border-radius:8px;overflow:auto}} pre code{
 pre.mermaid{{background:#fff;text-align:center}}
 table{{border-collapse:collapse;width:100%;margin:1em 0}} th,td{{border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:.92em}}
 th{{background:#fafafa}} blockquote{{border-left:4px solid #ddd;margin:1em 0;padding:.2em 1em;color:#555}} img{{max-width:100%}}
-nav.posts{{font-size:.9em;color:#666;margin-bottom:1.5em}} nav.posts a{{color:#06c;text-decoration:none}}</style>
+video{{max-width:100%;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.14);margin:.4em 0}}
+.gallery{{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:1.2em 0}}
+.gallery figure{{margin:0}} .gallery figcaption{{font-size:.82em;color:#777;margin-top:4px}}
+.site-nav{{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin:0 0 2em;padding-bottom:14px;border-bottom:1px solid #eee}}
+.site-nav .brand{{font-weight:700;color:#111;text-decoration:none;font-size:1.06em;margin-right:auto}}
+.navlinks{{display:flex;flex-wrap:wrap;gap:8px}}
+.nav-item{{display:flex;flex-direction:column;line-height:1.15;text-decoration:none;color:#06c;padding:6px 12px;border:1px solid #e7e7e7;border-radius:10px;background:#fafafa;transition:all .12s}}
+.nav-item span{{font-size:.72em;color:#9a9a9a;font-weight:400}}
+.nav-item:hover{{border-color:#06c;background:#f0f7ff}}
+.nav-item.active{{background:#111;border-color:#111;color:#fff;pointer-events:none}}
+.nav-item.active span{{color:#bbb}}</style>
 """
 
 MERMAID = ('<script type="module">'
@@ -49,17 +59,18 @@ MERMAID = ('<script type="module">'
 
 
 def nav(active: str) -> str:
-    items = []
-    for slug, (_src, _title, label) in PAGES.items():
-        if slug == active:
-            items.append(f"<strong>{label}</strong>")
-        else:
-            items.append(f'<a href="{slug}.html">{label}</a>')
-    return '<nav class="posts">The Agentic Studio: ' + " &middot; ".join(items) + "</nav>\n"
+    links = []
+    for slug, (_src, _title, short, sub) in PAGES.items():
+        cls = "nav-item active" if slug == active else "nav-item"
+        href = "#" if slug == active else f"{slug}.html"
+        links.append(f'<a class="{cls}" href="{href}"><b>{short}</b><span>{sub}</span></a>')
+    return ('<header class="site-nav">'
+            '<a class="brand" href="agentic-studio-series.html">🎬 The Agentic Studio</a>'
+            '<nav class="navlinks">' + "".join(links) + "</nav></header>\n")
 
 
 def render(slug: str) -> None:
-    src, title, _label = PAGES[slug]
+    src, title, _short, _sub = PAGES[slug]
     text = (ROOT / src).read_text()
     md = markdown.Markdown(extensions=["tables", "fenced_code", "sane_lists"])
     html = md.convert(text)
