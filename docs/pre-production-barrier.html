@@ -159,6 +159,13 @@ detail matters: <strong>the handoff artifact, not the conversation, is the inter
 </tr>
 </tbody>
 </table>
+<p><em>Those rule codes in plain English:</em> the <strong>180° line</strong> (R1) keeps the camera on one side of the
+imaginary line between two characters so they don't swap sides on a cut; an <strong>eyeline match</strong> (R3)
+makes sure that when A looks at B, the next shot frames B from the direction A was looking;
+<strong>establish-first</strong> (R7) means you show the room before you cut into close-ups of it; the <strong>30° rule</strong>
+(R4) avoids a jarring "jump cut" by moving the camera at least 30° between two shots of the same
+subject. Each is something a human script supervisor watches for on set — and each reduces to an
+arithmetic check on the shot-plan numbers, which is the whole reason <code>film_grammar</code> can enforce them.</p>
 <p>Two of these mappings carry the whole design:</p>
 <ul>
 <li>The <strong>script supervisor is deterministic code.</strong> Continuity is <em>rules</em>, not taste. The 180° line,
@@ -234,55 +241,55 @@ sequenceDiagram
     autonumber
     actor U as User
     participant H as Agent (Gemini LLM)
-    participant SK as Skills runtime<br/>(SkillToolset, in-agent)
-    participant S as movie-mcp<br/>(over Streamable HTTP)
-    participant G as film_grammar<br/>(deterministic)
-    participant NB as nano-banana<br/>(Vertex AI)
-    participant B as Bible<br/>(per-user JSON)
+    participant SK as Skills runtime&lt;br/&gt;(SkillToolset, in-agent)
+    participant S as movie-mcp&lt;br/&gt;(over Streamable HTTP)
+    participant G as film_grammar&lt;br/&gt;(deterministic)
+    participant NB as nano-banana&lt;br/&gt;(Vertex AI)
+    participant B as Bible&lt;br/&gt;(per-user JSON)
 
     rect rgb(244,247,252)
     Note over H,S: Wire-up once — MCP handshake; Skills L1 metadata resident
-    H->>S: initialize + tools/list
-    S-->>H: tool schemas (plan_scene, generate_shot, …)
+    H-&gt;&gt;S: initialize + tools/list
+    S--&gt;&gt;H: tool schemas (plan_scene, generate_shot, …)
     Note over H,SK: L1: skill names/descriptions already in context
     end
 
-    U->>H: "Shoot scene 3 — the kid looks up at the galaxy"
+    U-&gt;&gt;H: &quot;Shoot scene 3 — the kid looks up at the galaxy&quot;
 
     rect rgb(245,244,252)
     Note over H,SK: KNOW-HOW loads in-process (no network) — progressive disclosure
-    H->>SK: load_skill("film-director")            %% L2: the workflow
-    SK-->>H: decision procedure (coverage, camera, anchors)
+    H-&gt;&gt;SK: load_skill film-director [L2 workflow]
+    SK--&gt;&gt;H: decision procedure (coverage, camera, anchors)
     opt rules needed
-        H->>SK: load_skill_resource("references/continuity-rules.md")  %% L3
-        SK-->>H: [ENFORCED] rule list (R1/R3/R4/R7/R14/R19)
+        H-&gt;&gt;SK: load_skill_resource continuity-rules.md [L3]
+        SK--&gt;&gt;H: [ENFORCED] rule list (R1/R3/R4/R7/R14/R19)
     end
     Note over H: LLM emits a ShotPlan JSON per the skill
     end
 
     rect rgb(244,252,244)
     Note over H,B: CAPABILITY over the wire — validated, then rendered
-    H->>S: tools/call plan_scene(ShotPlan)
-    S->>G: validate_plan(plan)
+    H-&gt;&gt;S: tools/call plan_scene(ShotPlan)
+    S-&gt;&gt;G: validate_plan(plan)
     alt zero error-severity violations
-        G-->>S: [] (warns allowed)
-        S->>B: persist shots
-        S-->>H: {scene_id, shots}
-        H->>S: tools/call generate_shot(scene_id, shot_id)
-        S->>NB: compose from style plate + character refs
-        NB-->>S: PNG bytes
-        S->>B: save + qc_ok/qc_score
-        S-->>H: {resource_uri:"movie://…"}   %% link, NOT bytes
+        G--&gt;&gt;S: [] (warns allowed)
+        S-&gt;&gt;B: persist shots
+        S--&gt;&gt;H: {scene_id, shots}
+        H-&gt;&gt;S: tools/call generate_shot(scene_id, shot_id)
+        S-&gt;&gt;NB: compose from style plate + character refs
+        NB--&gt;&gt;S: PNG bytes
+        S-&gt;&gt;B: save + qc_ok/qc_score
+        S--&gt;&gt;H: resource_uri movie://… (a link, NOT bytes)
     else has error violations
-        G-->>S: [R1 line cross, R3 eyeline, …]
-        S-->>H: rejected + violations
+        G--&gt;&gt;S: [R1 line cross, R3 eyeline, …]
+        S--&gt;&gt;H: rejected + violations
         Note over H: re-block via skill, resend — no frame was rendered
     end
     end
 
-    H->>S: resources/read movie://…        %% bytes fetched on demand only
-    S-->>H: PNG bytes
-    H-->>U: "Scene 3 keyframe: movie://…"
+    H-&gt;&gt;S: resources/read movie://… (bytes on demand only)
+    S--&gt;&gt;H: PNG bytes
+    H--&gt;&gt;U: &quot;Scene 3 keyframe: movie://…&quot;
 
 </pre>
 <p>Read the diagram as three bands. The <strong>blue</strong> band happens once — the MCP handshake, and Skill L1
@@ -313,23 +320,23 @@ sequenceDiagram
     participant NB as nano-banana
     participant B as Bible
 
-    U->>H: "Galaxy over a remote town — a kid who wants the stars"
+    U-&gt;&gt;H: &quot;Galaxy over a remote town — a kid who wants the stars&quot;
 
     rect rgb(245,244,252)
     Note over H,B: PRE-PRODUCTION — sequential barrier (cheap: text + a few anchors)
-    H->>SK: load_skill("script-developer")
-    SK-->>H: clarify + treatment procedure
+    H-&gt;&gt;SK: load_skill(&quot;script-developer&quot;)
+    SK--&gt;&gt;H: clarify + treatment procedure
     Note over H: LLM emits Treatment{logline, scenes[], cast[]}
-    H->>S: create_project
-    S->>B: write bible → project_id
-    H->>S: generate_style_ref
-    S->>NB: ONE global look anchor (town night + galaxy palette)
-    NB-->>S: PNG
-    S->>B: StyleRef
+    H-&gt;&gt;S: create_project
+    S-&gt;&gt;B: write bible → project_id
+    H-&gt;&gt;S: generate_style_ref
+    S-&gt;&gt;NB: ONE global look anchor (town night + galaxy palette)
+    NB--&gt;&gt;S: PNG
+    S-&gt;&gt;B: StyleRef
     loop each character in cast
-        H->>S: add_character
-        S->>NB: reference sheet
-        S->>B: CharacterSheet{ref_uri} (+ QC)
+        H-&gt;&gt;S: add_character
+        S-&gt;&gt;NB: reference sheet
+        S-&gt;&gt;B: CharacterSheet{ref_uri} (+ QC)
     end
     end
 
@@ -338,29 +345,29 @@ sequenceDiagram
     rect rgb(244,252,244)
     Note over H,B: PHOTOGRAPHY — fan-out; scenes independent now (second unit)
     par scene 1
-        H->>S: establish_scene → plan_scene
-        S->>G: validate_plan
-        G-->>S: [] ok
-        S->>NB: generate_shot (from plate + refs)
-        S->>B: shot + resource_uri
+        H-&gt;&gt;S: establish_scene → plan_scene
+        S-&gt;&gt;G: validate_plan
+        G--&gt;&gt;S: [] ok
+        S-&gt;&gt;NB: generate_shot (from plate + refs)
+        S-&gt;&gt;B: shot + resource_uri
     and scene 2
-        H->>S: establish_scene → plan_scene
-        S->>G: validate_plan
-        G-->>S: [R3 eyeline] ← gaze-to-galaxy
+        H-&gt;&gt;S: establish_scene → plan_scene
+        S-&gt;&gt;G: validate_plan
+        G--&gt;&gt;S: [R3 eyeline] ← gaze-to-galaxy
         Note over H: re-block via skill, resend (no render spent)
-        S->>NB: generate_shot
-        S->>B: shot + resource_uri
+        S-&gt;&gt;NB: generate_shot
+        S-&gt;&gt;B: shot + resource_uri
     and scene 3
-        H->>S: establish_scene → plan_scene → generate_shot
-        S->>B: shot + resource_uri
+        H-&gt;&gt;S: establish_scene → plan_scene → generate_shot
+        S-&gt;&gt;B: shot + resource_uri
     end
     end
 
     rect rgb(244,247,252)
     Note over H,B: POST — sequential join
-    H->>S: list_project_assets
-    S-->>H: ResourceLinks (movie://…)
-    H-->>U: dailies — one keyframe per scene
+    H-&gt;&gt;S: list_project_assets
+    S--&gt;&gt;H: ResourceLinks (movie://…)
+    H--&gt;&gt;U: dailies — one keyframe per scene
     end
 
 </pre>
@@ -377,6 +384,24 @@ sequenceDiagram
   agent re-blocks via the skill, and <strong>no frame was rendered</strong> for the rejected plan. Deterministic
   gate before the expensive call, per branch.</li>
 </ul>
+<h2>What the pipeline actually produces</h2>
+<p>Abstract enough. Here are real artifacts from a single run, in pipeline order — the same
+barrier-then-fan-out you just read, rendered.</p>
+<p><strong>1. The style anchor</strong> (<code>generate_style_ref</code>) — one image that fixes the world's look: palette,
+light, texture. Everything downstream is composed to match it.</p>
+<p><img alt="The style reference: a warm, lamp-lit living room at night, establishing the film's overall look" src="images/studio-style-ref.jpg" /></p>
+<p><strong>2. The character sheet</strong> (<code>add_character</code>) — the identity anchor, generated once and reused in every
+shot the character appears in. This is what stops the "recast every scene" problem.</p>
+<p><img alt="A character reference sheet with front, 3/4, profile and back views and a colour key" src="images/studio-character-sheet.png" /></p>
+<p><strong>3. The set plate</strong> (<code>establish_scene</code>) — the people-free room, lit and dressed. It's rendered once
+per scene and every shot in that scene is composed on top of it, so the space stays put.</p>
+<p><img alt="An empty, morning-lit kitchen set plate with no characters in frame" src="images/studio-set-plate.jpg" /></p>
+<p><strong>4. The micro-shot</strong> (<code>plan_scene</code> → <code>generate_shot</code>) — the scene's coverage, validated for
+continuity, then rendered. Notice the payoff of stages 1–3: the <em>same</em> two characters, the <em>same</em>
+set, consistent screen direction, across three different framings.</p>
+<p><img alt="A three-frame storyboard — wide two-shot, close-up, reverse — with consistent characters and set" src="images/studio-microshot-3frame.png" /></p>
+<p>That last frame is the whole architecture cashing out: identity from the sheet, world from the style
+anchor, space from the set plate, continuity from the validator — composed into shots that agree.</p>
 <h2>Why the anchor is a single call, on purpose</h2>
 <p><code>generate_style_ref</code> produces <strong>one</strong> global look anchor, and every character and scene is composed
 <em>from</em> it. This is the barrier doing its job: it's the shared context that keeps N parallel branches

@@ -21,11 +21,17 @@ Three invariants carry the weight. Each is a concrete engineering problem with a
 and each gets harder — not easier — as the render function improves, because a sharper render makes an
 inconsistency *more* obvious, not less.
 
+![Three shots of one scene with the same characters, set, and screen direction — the product of all three invariants holding at once](images/studio-microshot-3frame.png)
+
+*What "the product" looks like: three framings of one scene where identity, continuity, and the world
+all hold. No single render gives you this — it's the invariants below, enforced together.*
+
 ## Invariant 1 — Identity across shots
 
 **The problem.** The same character must read as one person across dozens of shots, at different
 angles, distances, and lighting, when every render is an independent stochastic draw. Prompt the same
-description twice and you get two different people.
+description twice and you get two different people — imagine a film where the lead is quietly recast
+with a new look-alike in every single scene. That's the default behavior you're fighting.
 
 **The mechanism.** Cast once, then condition every render on a **canonical reference sheet** — a
 front + 3/4 view generated at project start and stored in the bible. Keyframes are composed *from*
@@ -38,12 +44,19 @@ load-bearing — resist the urge to "optimize" it into a single multi-reference 
 notion of "a person." A single-image check literally cannot tell "the same character" from "a
 character"; the reference is what makes the score mean something.
 
+![The reference sheet the critic scores against: multiple views of one character plus a colour key](images/studio-character-sheet.png)
+
+*The reference sheet is both the input to every render and the yardstick the critic judges it by.
+"Does this look like her?" only has an answer because there is a canonical *her* to compare to.*
+
 ## Invariant 2 — Continuity across scenes
 
 **The problem.** Screen direction, eyelines, the 180° line, lens family, and shot-to-shot angle
 deltas must hold across cuts, or the audience feels the space break even if every individual frame is
-beautiful. This is not a matter of taste — it is a set of rules professional supervisors enforce on
-set.
+beautiful. These are the famous blooper-reel gaffes — the coffee cup that appears mid-scene, the
+actor looking the wrong way after a cut so two people seem to trade seats. This is not a matter of
+taste; it is a set of rules professional script supervisors enforce on set precisely because they are
+easy, invisible mistakes to make.
 
 **The mechanism.** Encode them as a **deterministic validator** over the shot-plan JSON — pure logic,
 no I/O — and gate rendering on it: R7 establish-first, R1 180° line, R3 eyeline, R4 30° jump-cut, R14
@@ -59,7 +72,10 @@ what is genuinely subjective.
 
 **The problem.** Some shots fuse distinct visual domains that must read as one photograph — the
 running example: a painted galaxy at optical infinity over a sharp, night-lit town. Get it wrong and
-the sky looks glued on, the single most common tell of amateur compositing.
+the sky looks glued on, the single most common tell of amateur compositing. Think of a TV weather
+presenter whose lighting doesn't match the map projected behind them: your eye flags the fake
+instantly, even if you can't name what's off. A generated galaxy floating over a generated town fails
+in exactly the same way — two layers that never agreed on where the light comes from.
 
 **The mechanism.** A **single global style anchor** both domains derive from, locking one color
 temperature, one grain, one palette across the cosmic and terrestrial layers. Then extend the critic

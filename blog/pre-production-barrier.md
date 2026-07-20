@@ -111,6 +111,14 @@ Model the roles, and the agents, artifacts, and guardrails fall out of the org c
 | Editor / QC | dailies, reshoots | `film-editor` skill + `review_image` | `Dailies{qc_score, issues}` | critic + `QC_MAX_TRIES` |
 | Composer | score | `musicgen` | audio | — |
 
+*Those rule codes in plain English:* the **180° line** (R1) keeps the camera on one side of the
+imaginary line between two characters so they don't swap sides on a cut; an **eyeline match** (R3)
+makes sure that when A looks at B, the next shot frames B from the direction A was looking;
+**establish-first** (R7) means you show the room before you cut into close-ups of it; the **30° rule**
+(R4) avoids a jarring "jump cut" by moving the camera at least 30° between two shots of the same
+subject. Each is something a human script supervisor watches for on set — and each reduces to an
+arithmetic check on the shot-plan numbers, which is the whole reason `film_grammar` can enforce them.
+
 Two of these mappings carry the whole design:
 
 - The **script supervisor is deterministic code.** Continuity is *rules*, not taste. The 180° line,
@@ -214,10 +222,10 @@ sequenceDiagram
 
     rect rgb(245,244,252)
     Note over H,SK: KNOW-HOW loads in-process (no network) — progressive disclosure
-    H->>SK: load_skill("film-director")            %% L2: the workflow
+    H->>SK: load_skill film-director [L2 workflow]
     SK-->>H: decision procedure (coverage, camera, anchors)
     opt rules needed
-        H->>SK: load_skill_resource("references/continuity-rules.md")  %% L3
+        H->>SK: load_skill_resource continuity-rules.md [L3]
         SK-->>H: [ENFORCED] rule list (R1/R3/R4/R7/R14/R19)
     end
     Note over H: LLM emits a ShotPlan JSON per the skill
@@ -235,7 +243,7 @@ sequenceDiagram
         S->>NB: compose from style plate + character refs
         NB-->>S: PNG bytes
         S->>B: save + qc_ok/qc_score
-        S-->>H: {resource_uri:"movie://…"}   %% link, NOT bytes
+        S-->>H: resource_uri movie://… (a link, NOT bytes)
     else has error violations
         G-->>S: [R1 line cross, R3 eyeline, …]
         S-->>H: rejected + violations
@@ -243,7 +251,7 @@ sequenceDiagram
     end
     end
 
-    H->>S: resources/read movie://…        %% bytes fetched on demand only
+    H->>S: resources/read movie://… (bytes on demand only)
     S-->>H: PNG bytes
     H-->>U: "Scene 3 keyframe: movie://…"
 ```
@@ -343,6 +351,35 @@ Three things this picture makes obvious that the prose can't:
   (the kid's gaze doesn't match where the galaxy is framed — the eyeline-to-environment case), the
   agent re-blocks via the skill, and **no frame was rendered** for the rejected plan. Deterministic
   gate before the expensive call, per branch.
+
+## What the pipeline actually produces
+
+Abstract enough. Here are real artifacts from a single run, in pipeline order — the same
+barrier-then-fan-out you just read, rendered.
+
+**1. The style anchor** (`generate_style_ref`) — one image that fixes the world's look: palette,
+light, texture. Everything downstream is composed to match it.
+
+![The style reference: a warm, lamp-lit living room at night, establishing the film's overall look](images/studio-style-ref.jpg)
+
+**2. The character sheet** (`add_character`) — the identity anchor, generated once and reused in every
+shot the character appears in. This is what stops the "recast every scene" problem.
+
+![A character reference sheet with front, 3/4, profile and back views and a colour key](images/studio-character-sheet.png)
+
+**3. The set plate** (`establish_scene`) — the people-free room, lit and dressed. It's rendered once
+per scene and every shot in that scene is composed on top of it, so the space stays put.
+
+![An empty, morning-lit kitchen set plate with no characters in frame](images/studio-set-plate.jpg)
+
+**4. The micro-shot** (`plan_scene` → `generate_shot`) — the scene's coverage, validated for
+continuity, then rendered. Notice the payoff of stages 1–3: the *same* two characters, the *same*
+set, consistent screen direction, across three different framings.
+
+![A three-frame storyboard — wide two-shot, close-up, reverse — with consistent characters and set](images/studio-microshot-3frame.png)
+
+That last frame is the whole architecture cashing out: identity from the sheet, world from the style
+anchor, space from the set plate, continuity from the validator — composed into shots that agree.
 
 ## Why the anchor is a single call, on purpose
 

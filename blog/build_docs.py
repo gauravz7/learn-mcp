@@ -65,10 +65,10 @@ def render(slug: str) -> None:
     html = md.convert(text)
 
     def _mermaid(m: re.Match) -> str:
-        body = m.group(1)
-        for a, b in (("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&quot;", '"')):
-            body = body.replace(a, b)
-        return f'<pre class="mermaid">\n{body}\n</pre>'
+        # Keep the HTML entities as-is. The browser decodes them in textContent, which is
+        # exactly what Mermaid reads — so `&lt;br/&gt;` reaches Mermaid as the literal string
+        # "<br/>" (a label line-break) instead of a real <br> DOM node the browser would eat.
+        return f'<pre class="mermaid">\n{m.group(1)}\n</pre>'
 
     n_mmd = len(re.findall(r'<pre><code class="language-mermaid">', html))
     html = re.sub(r'<pre><code class="language-mermaid">(.*?)</code></pre>',
