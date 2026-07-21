@@ -19,6 +19,34 @@ them to the model**. That's what keeps the agent's context small.
 
 ---
 
+## Deploy this agent (agent-hub / one-click)
+
+The flagship agent is **`movie_director`** (*The Agentic Studio*) in `movie_agent/agent.py` — it turns
+a sentence into a multi-scene short (cast → style → storyboards → video) by driving the `movie-mcp`
+pipeline. This repo is **portal-ready** for agent-hub (`go/gcr-agenthub`): one command stands up the
+backend *and* the agent.
+
+```bash
+./deploy.sh <PROJECT_ID>                 # movie-mcp (Cloud Run) + movie_director (Agent Engine)
+./deploy.sh <PROJECT_ID> --ge <APP_ID>   # …and register with a Gemini Enterprise app
+./deploy.sh <PROJECT_ID> --cleanup       # tear it all down
+```
+
+Portal-ready contract (`adk` agent):
+
+| File | Purpose |
+|---|---|
+| `README.md` | Marks the project root (this file); rendered on the detail page |
+| `deploy.sh` | One-click deploy; `<PROJECT_ID>` + `--ge APP_ID`; runs standalone |
+| `setup.sh` | Idempotent GCP setup (APIs, IAM, media bucket); supports `--cleanup` |
+| `movie_agent/agent.py` | Exports `root_agent` (and `app` for Agent Engine) |
+| `pyproject.toml` | Carries `[tool.agents-cli]` (target `agent_runtime`, agent dir `movie_agent`) |
+
+Skills are vendored into `movie_agent/skills/` so the agent packages self-contained. Regenerate or
+refresh the deployment infra with `agents-cli scaffold enhance .`.
+
+---
+
 ## 1. Skills (know-how)
 
 Skills are `SKILL.md` files that run **inside the ADK agent's own runtime** (`SkillToolset` +

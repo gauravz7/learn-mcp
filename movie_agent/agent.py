@@ -19,7 +19,9 @@ os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "TRUE")
 os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
 
 MCP_URL = os.environ.get("MCP_URL", "http://localhost:9100/mcp")
-SKILLS = pathlib.Path(__file__).parent.parent / "movie" / "skills"
+# Skills are vendored into this package (movie_agent/skills) so the agent is self-contained
+# when packaged for deployment (Agent Engine builds a wheel of the movie_agent package only).
+SKILLS = pathlib.Path(__file__).parent / "skills"
 
 
 def _mcp_headers() -> dict[str, str]:
@@ -223,3 +225,7 @@ root_agent = Agent(
     instruction=_instruction,
     tools=[skill_toolset.SkillToolset(skills=skills), movie_tools],
 )
+
+from google.adk.apps import App
+
+app = App(root_agent=root_agent, name="movie_agent")

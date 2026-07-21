@@ -37,7 +37,7 @@ SITE = "https://gauravz7.github.io/movie-studio-agent"
 # link-preview card so a scraper never falls back to the first inline image (a
 # character reference sheet). Heroes are landscape so they don't get letterboxed.
 SOCIAL = {
-    "agentic-studio-series": ("choice-style.jpg",
+    "agentic-studio-series": ("project-hero.png",
         "An AI film studio built as an agent — a sentence in, a multi-scene short out. "
         "Why the durable value is the orchestration layer, not the render function."),
     "part-1-thesis": ("choice-style.jpg",

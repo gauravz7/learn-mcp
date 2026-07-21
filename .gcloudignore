@@ -1,0 +1,20 @@
+# Keep the Agent Engine / Cloud Run upload small (payload limit is 8 MB for Agent Engine).
+# Exclude local envs, caches, VCS, generated media, and site/blog assets.
+.git/
+.venv/
+**/.venv/
+**/__pycache__/
+**/.adk/
+**/*.pyc
+# regenerable media + data (never needed in the deployed package)
+generated/
+**/generated/
+movie/data/
+transcripts/
+# docs / blog / large static assets (not part of the agent runtime)
+docs/
+blog/
+assets/
+*.zip
+# node
+node_modules/

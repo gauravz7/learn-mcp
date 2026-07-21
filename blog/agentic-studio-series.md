@@ -6,6 +6,8 @@ models made the individual *render* cheap. They did nothing for the *coordinatio
 is the movie. This is a three-part engineering series on collapsing that coordination into one
 director agent, built on a real MCP + Skills pipeline.*
 
+![The Agentic Studio — an AI director at the console orchestrating a film production: one coordination core feeding storyboards, character sheets, set plates, and rendered golden-hour scenes](media/project-hero.png)
+
 ---
 
 ## The thesis
