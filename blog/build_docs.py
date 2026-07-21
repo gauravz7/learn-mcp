@@ -30,6 +30,30 @@ PAGES = {
               "MCP and Skills — The Agentic Studio", "Foundations", "MCP & Skills"),
 }
 
+# Absolute site root (GitHub Pages) — required for social-preview images to resolve.
+SITE = "https://gauravz7.github.io/movie-studio-agent"
+
+# slug -> (og:image hero under media/, og:description). Controls the LinkedIn/Twitter
+# link-preview card so a scraper never falls back to the first inline image (a
+# character reference sheet). Heroes are landscape so they don't get letterboxed.
+SOCIAL = {
+    "agentic-studio-series": ("choice-style.jpg",
+        "An AI film studio built as an agent — a sentence in, a multi-scene short out. "
+        "Why the durable value is the orchestration layer, not the render function."),
+    "part-1-thesis": ("choice-style.jpg",
+        "The disruption in AI video isn't a better render function — it's the coordination "
+        "layer around one. Why the studio is a distributed system."),
+    "pre-production-barrier": ("seq-callpath.png",
+        "Barrier, fan-out, join — the architecture that forces N stochastic outputs to agree, "
+        "with the exact Skill + MCP call path and the deterministic gate."),
+    "part-3-moat": ("choice-plate-s1.jpg",
+        "Anyone can generate a clip; the moat is a thousand clips that agree. The invariants, "
+        "the critic loop, and the unit economics of consistency."),
+    "index": ("seq-callpath.png",
+        "MCP and Skills — the two standards behind an agentic studio. What each is, why you "
+        "need both, and the context economics that only show up when you ship."),
+}
+
 STYLE = """<!doctype html><meta charset=utf-8>
 <title>{title}</title><style>
 body{{max-width:740px;margin:40px auto;font:17px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial;color:#222;padding:0 16px}}
@@ -54,6 +78,20 @@ video{{max-width:100%;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.14);m
 MERMAID = ('<script type="module">'
            'import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";'
            'mermaid.initialize({startOnLoad:true,theme:"neutral"});</script>\n')
+
+# Open Graph + Twitter Card so LinkedIn/X render a controlled preview card.
+SOCIAL_META = (
+    '<meta property="og:type" content="article">'
+    '<meta property="og:site_name" content="The Agentic Studio">'
+    '<meta property="og:title" content="{title}">'
+    '<meta property="og:description" content="{desc}">'
+    '<meta property="og:image" content="{site}/media/{hero}">'
+    '<meta property="og:url" content="{site}/{slug}.html">'
+    '<meta name="twitter:card" content="summary_large_image">'
+    '<meta name="twitter:title" content="{title}">'
+    '<meta name="twitter:description" content="{desc}">'
+    '<meta name="twitter:image" content="{site}/media/{hero}">'
+    '<meta name="description" content="{desc}">\n')
 
 
 def nav(active: str) -> str:
@@ -88,8 +126,10 @@ def render(slug: str) -> None:
                   _mermaid, html, flags=re.S)
     out = ROOT / "docs" / f"{slug}.html"
     tail = ("\n" + MERMAID) if n_mmd else "\n"
-    out.write_text(STYLE.format(title=title) + nav(slug) + html + tail)
-    print(f"wrote docs/{slug}.html  ({n_mmd} mermaid diagrams)")
+    hero, desc = SOCIAL[slug]
+    meta = SOCIAL_META.format(site=SITE, slug=slug, title=title, desc=desc, hero=hero)
+    out.write_text(STYLE.format(title=title) + meta + nav(slug) + html + tail)
+    print(f"wrote docs/{slug}.html  (og:image={hero})")
 
 
 if __name__ == "__main__":
